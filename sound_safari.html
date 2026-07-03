@@ -177,13 +177,17 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
   .evalMarks span{width:52px;text-align:center;border-bottom:4px solid #d9c9a0;padding-bottom:4px;
     font-family:'Fredoka',sans-serif;font-weight:700;font-size:26px}
   .evalMarks span.ok{color:#4fc95c}
+  .evalMarks span.mid{color:#e0952a}
   .evalMarks span.no{color:#e8663b}
+  .evalMarks small{display:block;font-size:13px;color:#cbb994;font-weight:400;margin-top:2px}
   .evalHeard{position:absolute;left:353px;top:434px;width:573px;text-align:center;z-index:1;
     font-family:'Jua',sans-serif;font-size:22px;color:#e9dcc0}
   #evalRetry{left:437px;top:582px;width:231px;height:102px;cursor:pointer;pointer-events:auto}
   #evalClose{left:672px;top:580px;width:170px;height:108px;cursor:pointer;pointer-events:auto}
   #evalRetry:active,#evalClose:active{transform:translateY(3px)}
 </style>
+<!-- Azure Speech SDK (발음평가). 토큰 서버 미설정 시엔 로드돼도 사용 안 함 -->
+<script src="https://cdn.jsdelivr.net/npm/microsoft-cognitiveservices-speech-sdk@1.40.0/distrib/browser/microsoft.cognitiveservices.speech.sdk.bundle-min.js"></script>
 </head>
 <body>
 <div id="app">
@@ -297,6 +301,10 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
 
 <script>
 (function(){
+  // ===== Azure 발음평가 설정 =====
+  // 배포한 토큰 서버 URL을 넣으면 음소별 정확 평가(Azure) 사용. 비우면 간이(Web Speech) 평가.
+  const AZURE_TOKEN_URL = ''; // 예: 'https://your-worker.workers.dev/token'
+
   const stage=document.getElementById('stage'), app=document.getElementById('app');
   const bgVideo=document.getElementById('bgVideo');
   function fit(){
@@ -517,19 +525,27 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   let recog=null, recording=false, activeBtn=null;
 
-  // 마이크/스피크 공통: 녹음 → 발음 평가
+  // 녹음 UI 공통
+  function beginRec(btn){ recording=true; activeBtn=btn; btn.classList.add('recording'); micImg.src=MIC_ON; setLion('listen'); showInfo(1); }
+  function endRec(){ recording=false; if(activeBtn) activeBtn.classList.remove('recording'); activeBtn=null; micImg.src=MIC_OFF; }
+
+  // 발음 시작 — Azure(음소별) 우선, 없으면 Web Speech(간이)
   function startPractice(btn){
-    if(recording){ if(recog) recog.stop(); return; }
-    if(phase!=='speak'){ showInfo(3); return; } // "먼저 단어를 완성해줘!"
-    if(!SR){ showInfo(6); return; }             // "이 브라우저는 음성 인식 미지원"
+    if(recording){ if(recog){try{recog.stop()}catch(e){}} return; }
+    if(phase!=='speak'){ showInfo(3); return; }      // "먼저 단어를 완성해줘!"
+    if(AZURE_TOKEN_URL && window.SpeechSDK) return azureAssess(btn); // 음소별 정확 평가
+    if(SR) return webSpeechAssess(btn);              // 간이 평가(fallback)
+    showInfo(6);                                     // "이 브라우저는 음성 인식 미지원"
+  }
+
+  // --- Web Speech (간이): 단어 인식 후 글자단위 근사 평가 ---
+  function webSpeechAssess(btn){
     recog=new SR(); recog.lang='en-US'; recog.interimResults=false; recog.maxAlternatives=5;
-    recording=true; activeBtn=btn; btn.classList.add('recording'); micImg.src=MIC_ON; setLion('listen'); showInfo(1); // "발음해보세요!"
+    beginRec(btn);
     let got=false, errCode='';
     recog.onresult=(e)=>{
       got=true;
-      const target=levels[li].word.toLowerCase();
-      const r=e.results[0];
-      // 여러 후보 중 소리가 가장 많이 맞은 발음을 선택
+      const target=levels[li].word.toLowerCase(); const r=e.results[0];
       let best='', bestHits=-1;
       for(let i=0;i<r.length;i++){
         const t=(r[i].transcript||'').trim().toLowerCase().replace(/[^a-z]/g,'');
@@ -539,18 +555,46 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
       openEval(target, best);
     };
     recog.onerror=(e)=>{ errCode=(e&&e.error)||''; };
-    recog.onend=()=>{
-      recording=false; if(activeBtn) activeBtn.classList.remove('recording'); activeBtn=null; recog=null;
-      micImg.src=MIC_OFF; // 마이크 원래(주황)로 복귀
-      // 실제로 발음을 했을 때만(onresult) 평가 팝업이 뜬다. 소리가 없으면 안내만.
-      if(!got){
-        setLion('idle');
-        if(errCode==='not-allowed'||errCode==='service-not-allowed') showInfo(5); // "마이크 권한을 허용해주세요"
-        else showInfo(4);                                                          // "소리가 안 들렸어요..."
-      }
+    recog.onend=()=>{ endRec(); recog=null;
+      if(!got){ setLion('idle'); showInfo((errCode==='not-allowed'||errCode==='service-not-allowed')?5:4); }
     };
-    try{ recog.start(); }
-    catch(err){ recording=false; btn.classList.remove('recording'); micImg.src=MIC_OFF; }
+    try{ recog.start(); }catch(err){ endRec(); }
+  }
+
+  // --- Azure Pronunciation Assessment (음소별 정확 평가) ---
+  async function azureAssess(btn){
+    beginRec(btn);
+    let tok;
+    try{ const r=await fetch(AZURE_TOKEN_URL,{cache:'no-store'}); tok=await r.json(); }
+    catch(e){ endRec(); setLion('idle'); showInfo(4); return; } // 토큰 실패 → 안내
+    const SDK=window.SpeechSDK, word=levels[li].word;
+    let rec;
+    try{
+      const sc=SDK.SpeechConfig.fromAuthorizationToken(tok.token, tok.region);
+      sc.speechRecognitionLanguage='en-US';
+      rec=new SDK.SpeechRecognizer(sc, SDK.AudioConfig.fromDefaultMicrophoneInput());
+      const pac=new SDK.PronunciationAssessmentConfig(word,
+        SDK.PronunciationAssessmentGradingSystem.HundredMark,
+        SDK.PronunciationAssessmentGranularity.Phoneme, true);
+      try{ pac.phonemeAlphabet='IPA'; }catch(e){}
+      pac.applyTo(rec);
+    }catch(e){ endRec(); setLion('idle'); showInfo(4); return; }
+    rec.recognizeOnceAsync(res=>{
+      endRec(); let ok=false;
+      try{
+        if(res.reason===SDK.ResultReason.RecognizedSpeech){
+          const pr=SDK.PronunciationAssessmentResult.fromResult(res), phs=[];
+          (pr.detailResult.Words||[]).forEach(w=>(w.Phonemes||[]).forEach(p=>{
+            const sc=(p.PronunciationAssessment&&p.PronunciationAssessment.AccuracyScore);
+            phs.push({ph:p.Phoneme, score:Math.round(sc||0)});
+          }));
+          openEvalAzure(word, Math.round(pr.accuracyScore||0), phs);
+          ok=true;
+        }
+      }catch(e){}
+      if(!ok){ setLion('idle'); showInfo(4); }
+      try{ rec.close(); }catch(e){}
+    }, err=>{ endRec(); setLion('idle'); showInfo(4); try{ rec.close(); }catch(e){} });
   }
   btnMic.addEventListener('click',()=>startPractice(btnMic));
 
@@ -610,6 +654,24 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
     // 발음을 했으면(said) 다음 단어로 진행 가능
     if(said){ btnMic.classList.remove('invite'); nextBtn.style.display='block'; setLion(pct>=50?'praise':'idle'); }
     else setLion('idle');
+  }
+  // Azure 음소별 결과 팝업
+  function openEvalAzure(word, overall, phonemes){
+    const stars = overall>=80?3 : overall>=60?2 : overall>=40?1 : 0;
+    document.getElementById('evalWord').textContent=word;
+    document.querySelectorAll('#evalStars img').forEach((s,i)=>{
+      const on=i<stars; s.src=on?'assets/ic_star.png':'assets/ic_star_blank.png'; s.classList.toggle('on',on);
+    });
+    // 음소별 점수 (초록≥70 / 주황≥40 / 빨강)
+    document.getElementById('evalMarks').innerHTML = phonemes.map(p=>{
+      const cls=p.score>=70?'ok':p.score>=40?'mid':'no';
+      return '<span class="'+cls+'">/'+p.ph+'/<small>'+p.score+'</small></span>';
+    }).join('');
+    const bad=phonemes.filter(p=>p.score<60).map(p=>'/'+p.ph+'/').join(' ');
+    document.getElementById('evalHeard').textContent = bad ? ('틀린 소리 : '+bad+'  ('+overall+'점)') : ('정확해요! ('+overall+'점)');
+    if(phase==='speak' && !bonusClaimed){ const b=stars>=3?30:stars===2?20:stars===1?10:0; if(b){bonusClaimed=true;score+=b;scoreEl.textContent=score;} }
+    evalModal.className='on';
+    btnMic.classList.remove('invite'); nextBtn.style.display='block'; setLion(overall>=50?'praise':'idle');
   }
   document.getElementById('evalClose').addEventListener('click',()=>evalModal.classList.remove('on'));
   document.getElementById('evalRetry').addEventListener('click',()=>{ evalModal.classList.remove('on'); startPractice(btnMic); });
