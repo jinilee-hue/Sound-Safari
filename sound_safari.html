@@ -566,35 +566,41 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
     beginRec(btn);
     let tok;
     try{ const r=await fetch(AZURE_TOKEN_URL,{cache:'no-store'}); tok=await r.json(); }
-    catch(e){ endRec(); setLion('idle'); showInfo(4); return; } // 토큰 실패 → 안내
+    catch(e){ console.error('[azure] token fetch 실패', e); endRec(); setLion('idle'); showInfo(4); return; }
+    console.log('[azure] token OK, region=', tok&&tok.region);
     const SDK=window.SpeechSDK, word=levels[li].word;
     let rec;
     try{
       const sc=SDK.SpeechConfig.fromAuthorizationToken(tok.token, tok.region);
       sc.speechRecognitionLanguage='en-US';
+      try{ sc.setProperty(SDK.PropertyId.SpeechServiceConnection_InitialSilenceTimeoutMs,'8000'); }catch(e){}
       rec=new SDK.SpeechRecognizer(sc, SDK.AudioConfig.fromDefaultMicrophoneInput());
       const pac=new SDK.PronunciationAssessmentConfig(word,
         SDK.PronunciationAssessmentGradingSystem.HundredMark,
         SDK.PronunciationAssessmentGranularity.Phoneme, true);
       try{ pac.phonemeAlphabet='IPA'; }catch(e){}
       pac.applyTo(rec);
-    }catch(e){ endRec(); setLion('idle'); showInfo(4); return; }
+    }catch(e){ console.error('[azure] config 실패', e); endRec(); setLion('idle'); showInfo(4); return; }
     rec.recognizeOnceAsync(res=>{
       endRec(); let ok=false;
+      const raw = res.properties && res.properties.getProperty(SDK.PropertyId.SpeechServiceResponse_JsonResult);
+      console.log('[azure] reason=', res.reason, '| text=', res.text, '| json=', raw);
       try{
-        if(res.reason===SDK.ResultReason.RecognizedSpeech){
-          const pr=SDK.PronunciationAssessmentResult.fromResult(res), phs=[];
-          (pr.detailResult.Words||[]).forEach(w=>(w.Phonemes||[]).forEach(p=>{
-            const sc=(p.PronunciationAssessment&&p.PronunciationAssessment.AccuracyScore);
-            phs.push({ph:p.Phoneme, score:Math.round(sc||0)});
+        if(res.reason===SDK.ResultReason.RecognizedSpeech && raw){
+          const j=JSON.parse(raw), nb=(j.NBest&&j.NBest[0])||{}, phs=[];
+          const overall=Math.round((nb.PronunciationAssessment&&nb.PronunciationAssessment.AccuracyScore)||0);
+          (nb.Words||[]).forEach(w=>(w.Phonemes||[]).forEach(p=>{
+            phs.push({ph:p.Phoneme, score:Math.round((p.PronunciationAssessment&&p.PronunciationAssessment.AccuracyScore)||0)});
           }));
-          openEvalAzure(word, Math.round(pr.accuracyScore||0), phs);
-          ok=true;
+          console.log('[azure] overall=', overall, 'phonemes=', phs);
+          if(phs.length){ openEvalAzure(word, overall, phs); ok=true; } // 음소 데이터 있을 때만
+        } else if(res.reason===SDK.ResultReason.Canceled){
+          console.error('[azure] Canceled:', SDK.CancellationDetails.fromResult(res).errorDetails);
         }
-      }catch(e){}
-      if(!ok){ setLion('idle'); showInfo(4); }
+      }catch(e){ console.error('[azure] parse err', e); }
+      if(!ok){ setLion('idle'); showInfo(4); } // 데이터 없으면 잘못된 '정확해요' 대신 재시도 안내
       try{ rec.close(); }catch(e){}
-    }, err=>{ endRec(); setLion('idle'); showInfo(4); try{ rec.close(); }catch(e){} });
+    }, err=>{ console.error('[azure] recognizeOnce err', err); endRec(); setLion('idle'); showInfo(4); try{ rec.close(); }catch(e){} });
   }
   btnMic.addEventListener('click',()=>startPractice(btnMic));
 
