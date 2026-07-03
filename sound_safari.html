@@ -101,6 +101,18 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
     82%{opacity:1;transform:translate(-50%,-50%) scale(1)}
     100%{opacity:0;transform:translate(-50%,-50%) scale(.96)}}
 
+  /* 안내 문구 이미지 토스트 (info_txt1~6) */
+  #infoToast{position:absolute;left:50%;top:20%;z-index:42;width:auto;max-width:44%;
+    transform:translate(-50%,-50%) scale(.5);opacity:0;pointer-events:none;
+    filter:drop-shadow(0 6px 10px rgba(0,0,0,.3))}
+  #infoToast.show{animation:infoPop 1.7s cubic-bezier(.2,1.4,.4,1)}
+  @keyframes infoPop{
+    0%{opacity:0;transform:translate(-50%,-50%) scale(.5)}
+    12%{opacity:1;transform:translate(-50%,-50%) scale(1.06)}
+    25%{transform:translate(-50%,-50%) scale(1)}
+    80%{opacity:1;transform:translate(-50%,-50%) scale(1)}
+    100%{opacity:0;transform:translate(-50%,-50%) scale(.96)}}
+
   /* toast — 그래픽 뱃지 스타일 */
   #toast{position:absolute;left:50%;top:44%;z-index:40;opacity:0;pointer-events:none;
     transform:translate(-50%,-50%) scale(.3);
@@ -143,43 +155,33 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
     -webkit-text-stroke:4px #4a2a12;paint-order:stroke fill;
     text-shadow:0 2px 0 rgba(0,0,0,.25);pointer-events:none}
 
-  /* ===== 발음 평가 팝업 ===== */
-  #evalModal{position:absolute;inset:0;z-index:60;display:none;align-items:center;justify-content:center;
-    background:rgba(18,38,18,.55)}
-  #evalModal.on{display:flex}
-  .evalCard{width:520px;max-width:86%;padding:32px 40px 28px;border-radius:36px;text-align:center;
-    background:linear-gradient(180deg,#fffef4,#ffe9c2);border:6px solid #fff;
-    box-shadow:0 18px 44px rgba(0,0,0,.45),inset 0 4px 0 rgba(255,255,255,.7);
-    font-family:'Jua',sans-serif;color:#5a3410;animation:cardIn .4s cubic-bezier(.2,1.4,.4,1)}
-  @keyframes cardIn{0%{opacity:0;transform:scale(.6) translateY(20px)}100%{opacity:1;transform:none}}
-  .evalTitle{font-size:30px;color:#a3641f}
-  .evalWord{font-size:82px;line-height:1;margin:4px 0 12px;color:#3a7d2c;
-    text-shadow:0 3px 0 rgba(0,0,0,.12)}
-  .evalStars{display:flex;justify-content:center;gap:14px;margin:4px 0 10px}
-  .evalStars i{width:56px;height:56px;display:block;background:#ddd6c6}
-  .evalStars i{clip-path:polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%)}
-  .evalStars i.on{background:#ffc531;filter:drop-shadow(0 3px 2px rgba(0,0,0,.25));animation:starPop .5s}
+  /* ===== 발음 평가 팝업 (Figma: Sound Safari_발음평가, 스테이지 좌표 기준) ===== */
+  #evalModal{position:absolute;inset:0;z-index:60;display:none;background:rgba(14,30,14,.55)}
+  #evalModal.on{display:block}
+  #evalModal .pop{position:absolute;inset:0;animation:evalIn .4s cubic-bezier(.2,1.4,.4,1)}
+  @keyframes evalIn{0%{opacity:0;transform:scale(.85)}100%{opacity:1;transform:none}}
+  #evalModal img{position:absolute}
+  .evalBoxImg,.evalStars img{pointer-events:none} /* 장식 이미지는 클릭 통과, 버튼은 클릭 가능 */
+  .evalBoxImg{left:353px;top:60px;width:573px;height:510px}
+  .evalTitle{position:absolute;left:353px;top:120px;width:573px;text-align:center;z-index:1;
+    font-family:'Jua',sans-serif;font-size:36px;color:#fff;text-shadow:0 3px 0 rgba(0,0,0,.35)}
+  .evalStars{position:absolute;left:353px;top:190px;width:573px;display:flex;justify-content:center;gap:11px;z-index:1}
+  #evalStars img{position:static;width:63px;height:60px}
+  #evalStars img.on{animation:starPop .5s}
   @keyframes starPop{0%{transform:scale(0)}70%{transform:scale(1.3)}100%{transform:scale(1)}}
-  .evalScore{font-size:38px;color:#e8663b}
-  .evalHeard{font-size:22px;color:#8a6a45;margin:4px 0 2px;min-height:26px}
-  /* 소리 단위 상세 (글자별 ✓/✗) */
-  .evalBreak{display:flex;justify-content:center;gap:14px;margin:6px 0 8px;min-height:44px}
-  .evalBreak span{display:flex;flex-direction:column;align-items:center;line-height:1;
-    font-family:'Fredoka',sans-serif;font-weight:700;font-size:34px;text-transform:lowercase}
-  .evalBreak span.ok{color:#34ac4b}
-  .evalBreak span.no{color:#e8663b}
-  .evalBreak small{font-size:18px;margin-top:2px}
-  .evalMsg{font-size:34px;margin:8px 0 6px}
-  .evalBonus{font-size:28px;color:#e0952a;min-height:30px;margin:0 0 14px}
-  #evalModal.good .evalMsg{color:#34ac4b}
-  #evalModal.ok .evalMsg{color:#e0952a}
-  #evalModal.bad .evalMsg{color:#e8663b}
-  .evalBtns{display:flex;gap:16px;justify-content:center}
-  .evalBtns button{cursor:pointer;font-family:'Jua',sans-serif;font-size:26px;color:#fff;border:0;
-    border-radius:30px;padding:12px 30px}
-  .evalBtns button:active{transform:translateY(3px)}
-  #evalRetry{background:#4fa8c7;box-shadow:0 5px 0 #327a93}
-  #evalClose{background:#e8663b;box-shadow:0 5px 0 #a53c1c}
+  .evalWord{position:absolute;left:353px;top:262px;width:573px;text-align:center;z-index:1;line-height:1;
+    font-family:'Fredoka',sans-serif;font-weight:700;font-size:96px;color:#ffd23f;text-transform:uppercase;
+    -webkit-text-stroke:3px #6a3d0e;paint-order:stroke fill;text-shadow:0 4px 0 rgba(0,0,0,.2)}
+  .evalMarks{position:absolute;left:353px;top:366px;width:573px;display:flex;justify-content:center;gap:20px;z-index:1}
+  .evalMarks span{width:52px;text-align:center;border-bottom:4px solid #d9c9a0;padding-bottom:4px;
+    font-family:'Fredoka',sans-serif;font-weight:700;font-size:26px}
+  .evalMarks span.ok{color:#4fc95c}
+  .evalMarks span.no{color:#e8663b}
+  .evalHeard{position:absolute;left:353px;top:434px;width:573px;text-align:center;z-index:1;
+    font-family:'Jua',sans-serif;font-size:22px;color:#e9dcc0}
+  #evalRetry{left:437px;top:582px;width:231px;height:102px;cursor:pointer;pointer-events:auto}
+  #evalClose{left:672px;top:580px;width:170px;height:108px;cursor:pointer;pointer-events:auto}
+  #evalRetry:active,#evalClose:active{transform:translateY(3px)}
 </style>
 </head>
 <body>
@@ -261,26 +263,27 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
       <div class="a opt" style="left:849px;top:593px;width:90px;height:90px"><img alt="" onerror="this.style.display='none'"></div>
 
       <img id="result" alt="">
+      <img id="infoToast" alt="">
       <div id="toast"></div>
       <div class="a btn" id="next" style="left:1042px;top:590px;width:165px;height:94px;z-index:30">
         <img src="assets/btn_next.png" alt="Next" style="object-fit:contain">
         <span class="nextTxt">Next</span></div>
 
-      <!-- 발음 평가 팝업 -->
+      <!-- 발음 평가 팝업 (Figma: Sound Safari_발음평가) -->
       <div id="evalModal">
-        <div class="evalCard">
-          <div class="evalTitle">발음 평가</div>
-          <div class="evalWord" id="evalWord">cat</div>
-          <div class="evalStars" id="evalStars"><i></i><i></i><i></i></div>
-          <div class="evalScore" id="evalScore">0점</div>
-          <div class="evalHeard" id="evalHeard">들린 발음: —</div>
-          <div class="evalBreak" id="evalBreak"></div>
-          <div class="evalMsg" id="evalMsg">완벽해요!</div>
-          <div class="evalBonus" id="evalBonus"></div>
-          <div class="evalBtns">
-            <button id="evalRetry">다시 하기</button>
-            <button id="evalClose">닫기</button>
+        <div class="pop">
+          <img class="evalBoxImg" src="assets/pop_box.png" alt="">
+          <div class="evalTitle">발음평가</div>
+          <div class="evalStars" id="evalStars">
+            <img src="assets/ic_star_blank.png" alt="">
+            <img src="assets/ic_star_blank.png" alt="">
+            <img src="assets/ic_star_blank.png" alt="">
           </div>
+          <div class="evalWord" id="evalWord">bus</div>
+          <div class="evalMarks" id="evalMarks"></div>
+          <div class="evalHeard" id="evalHeard">틀린발음 : —</div>
+          <img id="evalRetry" src="assets/btn_replay2.png" alt="다시 하기">
+          <img id="evalClose" src="assets/btn_close.png" alt="닫기">
         </div>
       </div>
     </section>
@@ -337,6 +340,11 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
   const optEls=[...document.querySelectorAll('.opt')];
   let filled=0;
   const toast=document.getElementById('toast'), nextBtn=document.getElementById('next');
+  const infoToast=document.getElementById('infoToast');
+  function showInfo(n){ // 안내 문구 이미지 (1~6)
+    infoToast.src='assets/info_txt'+n+'.png';
+    infoToast.classList.remove('show'); void infoToast.offsetWidth; infoToast.classList.add('show');
+  }
   const resultImg=document.getElementById('result');
   function showResult(type){
     resultImg.src = type==='good' ? 'assets/good.png' : 'assets/try_again.png';
@@ -460,7 +468,7 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
     showResult('good');             // GOOD! 이미지 + 파티클
     confetti(210, 330, 20);         // 사자 주변에서 추가 파티클
     sayLetterThenWord(levels[li].word); // 마지막 글자 발음 후 전체 단어 읽기
-    setTimeout(()=>showToast('마이크를 눌러 발음해봐!'), 1100); // 발음 안내
+    setTimeout(()=>showInfo(2), 1100); // "마이크를 눌러 발음해봐!"
     // Next는 숨김 유지 → 발음해야 나타남(openEval). 단, 음성인식 미지원 브라우저는 예외로 허용
     if(!SR) nextBtn.style.display='block';
   }
@@ -504,10 +512,10 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
   // 마이크/스피크 공통: 녹음 → 발음 평가
   function startPractice(btn){
     if(recording){ if(recog) recog.stop(); return; }
-    if(phase!=='speak'){ showToast('먼저 단어를 완성해줘!','bad'); return; } // 완성 후에만 발음
-    if(!SR){ showToast('이 브라우저는 음성 인식 미지원','bad'); return; }
+    if(phase!=='speak'){ showInfo(3); return; } // "먼저 단어를 완성해줘!"
+    if(!SR){ showInfo(6); return; }             // "이 브라우저는 음성 인식 미지원"
     recog=new SR(); recog.lang='en-US'; recog.interimResults=false; recog.maxAlternatives=5;
-    recording=true; activeBtn=btn; btn.classList.add('recording'); micImg.src=MIC_ON; setLion('listen'); showToast('발음해보세요!');
+    recording=true; activeBtn=btn; btn.classList.add('recording'); micImg.src=MIC_ON; setLion('listen'); showInfo(1); // "발음해보세요!"
     let got=false, errCode='';
     recog.onresult=(e)=>{
       got=true;
@@ -529,8 +537,8 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
       // 실제로 발음을 했을 때만(onresult) 평가 팝업이 뜬다. 소리가 없으면 안내만.
       if(!got){
         setLion('idle');
-        if(errCode==='not-allowed'||errCode==='service-not-allowed') showToast('마이크 권한을 허용해주세요','bad');
-        else showToast('소리가 안 들렸어요, 다시 눌러 말해보세요','bad');
+        if(errCode==='not-allowed'||errCode==='service-not-allowed') showInfo(5); // "마이크 권한을 허용해주세요"
+        else showInfo(4);                                                          // "소리가 안 들렸어요..."
       }
     };
     try{ recog.start(); }
@@ -540,6 +548,10 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
 
   // ---- 평가 팝업 ----
   const evalModal=document.getElementById('evalModal');
+  // 글자→발음기호(IPA) : 현재 CVC 단어 세트 기준
+  const PHON={ a:'æ', b:'b', c:'k', d:'d', e:'ɛ', f:'f', g:'g', i:'ɪ', l:'l',
+               n:'n', o:'ɒ', p:'p', r:'r', s:'s', t:'t', u:'ʌ', v:'v', x:'ks' };
+  const phon = l => PHON[l]||l;
   // 소리(음소) 정렬: 들린 발음과 정답을 맞춰 정답 글자별로 맞았는지 표시
   function soundMatch(said, target){
     const m=said.length, n=target.length, d=[];
@@ -561,31 +573,38 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
     const hit = said ? soundMatch(said, word) : new Array(word.length).fill(false);
     const matched = hit.filter(Boolean).length;
     const pct = said ? Math.round(matched/word.length*100) : 0;
-    const stars = pct>=80?3 : pct>=50?2 : pct>=20?1 : 0;
-    // 소리 단위 상세 표시 (c ✓ / u ✗ / p ✗)
-    document.getElementById('evalBreak').innerHTML = word.split('').map((ch,i)=>
-      '<span class="'+(hit[i]?'ok':'no')+'">'+ch+'<small>'+(hit[i]?'✓':'✗')+'</small></span>').join('');
+    const stars = Math.min(matched, 3); // 맞은 소리 개수 = 노란 별 개수
     document.getElementById('evalWord').textContent=word;
-    document.getElementById('evalScore').textContent=pct+'점 ('+matched+'/'+word.length+' 소리)';
-    document.getElementById('evalHeard').textContent='들린 발음: '+(said||'—');
-    document.getElementById('evalMsg').textContent =
-      !said ? '소리가 안 들렸어요' : pct>=80 ? '완벽해요!' : pct>=50 ? '좋아요! 조금만 더!' : '다시 해볼까?';
-    document.querySelectorAll('#evalStars i').forEach((s,i)=>s.classList.toggle('on', i<stars));
-    evalModal.className='on '+(pct>=80?'good':pct>=50?'ok':'bad');
-    // 발음 보너스: 별점에 따라 3★+30 / 2★+20 / 1★+10 (레벨당 1회)
-    let bonus=0;
-    if(phase==='speak' && !bonusClaimed && said){
-      bonus = stars>=3?30 : stars===2?20 : stars===1?10 : 0;
-      if(bonus>0){ bonusClaimed=true; score+=bonus; scoreEl.textContent=score; btnMic.classList.remove('invite'); }
+    // 별점 (채움/빈 별 이미지 교체)
+    document.querySelectorAll('#evalStars img').forEach((s,i)=>{
+      const on=i<stars; s.src = on ? 'assets/ic_star.png' : 'assets/ic_star_blank.png';
+      s.classList.toggle('on', on);
+    });
+    // 글자별 o(맞음)/x(틀림)
+    document.getElementById('evalMarks').innerHTML = word.split('').map((ch,i)=>
+      '<span class="'+(hit[i]?'ok':'no')+'">'+(hit[i]?'o':'x')+'</span>').join('');
+    // 틀린 발음 — 어떤 음소가 틀렸는지 발음기호로 표기
+    const heardEl=document.getElementById('evalHeard');
+    if(!said){
+      heardEl.textContent='틀린 소리 : —';
+    } else if(matched>=word.length){
+      heardEl.textContent='정확해요! ['+word.split('').map(phon).join('')+']';
+    } else {
+      const wrong=word.split('').filter((l,i)=>!hit[i]).map(l=>'/'+phon(l)+'/').join(' ');
+      heardEl.textContent='틀린 소리 : '+wrong+'  (들림: '+said+')';
     }
-    document.getElementById('evalBonus').textContent = bonus>0 ? ('보너스 +'+bonus+'점!') : '';
+    // 발음 보너스: 별점에 따라 3★+30 / 2★+20 / 1★+10 (레벨당 1회)
+    if(phase==='speak' && !bonusClaimed && said){
+      const bonus = stars>=3?30 : stars===2?20 : stars===1?10 : 0;
+      if(bonus>0){ bonusClaimed=true; score+=bonus; scoreEl.textContent=score; }
+    }
+    evalModal.className='on';
     // 발음을 했으면(said) 다음 단어로 진행 가능
     if(said){ btnMic.classList.remove('invite'); nextBtn.style.display='block'; setLion(pct>=50?'praise':'idle'); }
     else setLion('idle');
   }
   document.getElementById('evalClose').addEventListener('click',()=>evalModal.classList.remove('on'));
   document.getElementById('evalRetry').addEventListener('click',()=>{ evalModal.classList.remove('on'); startPractice(btnMic); });
-  evalModal.addEventListener('click',(e)=>{ if(e.target===evalModal) evalModal.classList.remove('on'); });
   document.getElementById('btnHome').addEventListener('click',()=>{ game.classList.remove('on'); intro.classList.add('on'); });
   document.getElementById('btnSetting').addEventListener('click',()=>showToast('설정'));
 
