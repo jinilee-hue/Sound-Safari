@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Sound Safari</title>
+<!--
+================ ASSET MANIFEST (Figma: Sound Safari / 9d6Xuu0OyTVM1ZvK8Oavyu) ================
+Figma Dev Mode에서 export한 실제 아트를 ./assets/ 에 저장해 사용합니다. (로컬/오프라인 실행 가능)
+bg.png, logo.png, board.png, word_board.png, lion.png, life_board.png, life_heart.png,
+point_board.png, btn_home.png, btn_setting.png, btn_replay.png, btn_mic.png, btn_mic_on.png,
+btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
+글자 카드(컴포넌트): alphabet_<a-z>.png + alphabet_blank.png  (슬롯/트레이에 사이즈만 축소해 공용 사용)
+  ※ 현재 i, n, x 카드는 컴포넌트에 없음 → alphabet_i/n/x.png 추가 필요
+단어 그림(컴포넌트): img_<word>.png  (cat,bat,fan,van,rat,log,bus,pig,fox,sun,cup,bed)
+==============================================================================================
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Jua&family=Comic+Relief:wght@700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;overflow:hidden;background:#0d1b10;font-family:'Fredoka',sans-serif}
+  #app{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+    background:#0d1b10 url("assets/bg.png") center center / cover no-repeat}
+
+  /* 1280x720 stage, scaled to fit — Figma 좌표 그대로 유지 (라운드/그림자 없음) */
+  /* 배경은 stage에 '전체 그림'으로 채워 Figma 프레임과 동일하게(가운데 밝은 밴드 확대 방지) */
+  #stage{position:relative;width:1280px;height:720px;transform-origin:center center;overflow:hidden;
+    background:url("assets/bg.png") center center / 100% 100% no-repeat}
+
+  .screen{position:absolute;inset:0;display:none}
+  .screen.on{display:block}
+
+  /* asset node: exact Figma coords, image fills the box */
+  .a{position:absolute}
+  .a > img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none}
+
+  /* score + instruction (exact Figma type) */
+  #score{position:absolute;right:63px;top:80px;color:#ffe16a;font-size:36px;font-weight:500;
+    font-family:'Fredoka';text-align:right;white-space:nowrap;text-shadow:0 2px 0 rgba(0,0,0,.2);z-index:6}
+  #instruction{position:absolute;left:360px;top:112px;width:560px;color:#522d0d;font-size:34px;
+    font-family:'Jua',sans-serif;font-weight:400;letter-spacing:-1px;white-space:nowrap;text-align:center;z-index:6;
+    text-shadow:0 0 8px #fff,0 0 8px #fff,0 0 4px #fff,1px 1px 0 rgba(255,255,255,.9),-1px -1px 0 rgba(255,255,255,.9)}
+
+  /* interactive buttons */
+  .btn{cursor:pointer;transition:transform .1s}
+  .btn:active{transform:scale(.92)}
+  /* active(녹음) 상태 — 이미지는 btn_mic_on.png(빨강)로 교체, 여기선 맥박+글로우만 */
+  .btn.recording{animation:recPulse .7s ease-in-out infinite}
+  .btn.recording::after{content:"";position:absolute;inset:-8px;border-radius:50%;
+    box-shadow:0 0 22px 6px rgba(255,45,45,.55);pointer-events:none}
+  @keyframes recPulse{50%{transform:scale(1.07)}}
+  /* 단어 완성 전 마이크 잠김 */
+  .btn.locked{opacity:.45;filter:grayscale(.5)}
+  /* 단어 완성 후 마이크 "발음해봐!" 초대 */
+  .btn.invite{animation:invite 1s ease-in-out infinite}
+  .btn.invite::after{content:"";position:absolute;inset:-8px;border-radius:50%;
+    box-shadow:0 0 18px 6px rgba(90,175,70,.65);pointer-events:none}
+  @keyframes invite{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+
+  /* draggable option tiles */
+  .opt{cursor:grab;touch-action:none;z-index:8;transition:transform .18s cubic-bezier(.34,1.56,.64,1),top .18s,left .18s}
+  .opt.dragging{cursor:grabbing;z-index:20;transition:none;filter:drop-shadow(0 12px 10px rgba(0,0,0,.35))}
+  .opt.used{opacity:0;pointer-events:none}
+
+  .slot.hot > img{filter:drop-shadow(0 0 12px #ffe16a) brightness(1.08)}
+  .slot > img,.opt > img{object-fit:contain} /* 카드 원본 비율 유지하며 축소 */
+  .slot.filled > img{animation:tilePop .35s}
+  @keyframes tilePop{0%{transform:scale(.4)}70%{transform:scale(1.15)}100%{transform:scale(1)}}
+  /* 진행 표시 (푼 문제 / 전체) */
+  #progress{position:absolute;left:540px;top:32px;width:200px;text-align:center;color:#fff;
+    font-family:'Fredoka',sans-serif;font-weight:600;font-size:36px;text-shadow:0 2px 0 rgba(0,0,0,.3);z-index:6}
+  /* 그림 fallback (그림 준비 전 단어 표시) */
+  #picFb{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    font-family:'Jua',sans-serif;color:#3a7d2c;font-size:40px;text-transform:lowercase;
+    text-shadow:0 0 6px #fff,0 0 6px #fff}
+
+  .heart.lost{filter:grayscale(1);opacity:.35}
+
+  /* intro start hint */
+  .startHint{position:absolute;left:50%;bottom:70px;transform:translateX(-50%);z-index:6;
+    font-family:'Jua';color:#fff;font-size:30px;background:rgba(0,0,0,.35);padding:12px 34px;
+    border-radius:40px;animation:pulse 1.4s infinite}
+  @keyframes pulse{50%{transform:translateX(-50%) scale(1.06)}}
+
+  /* toast — 그래픽 뱃지 스타일 */
+  #toast{position:absolute;left:50%;top:44%;z-index:40;opacity:0;pointer-events:none;
+    transform:translate(-50%,-50%) scale(.3);
+    font-family:'Jua',sans-serif;font-size:56px;color:#fff;white-space:nowrap;
+    padding:16px 56px;border-radius:60px;border:5px solid #fff;
+    background:linear-gradient(180deg,#ffd23f,#ff9f1c);
+    box-shadow:0 10px 0 rgba(0,0,0,.18),0 16px 34px rgba(0,0,0,.4),inset 0 4px 0 rgba(255,255,255,.55);
+    text-shadow:0 3px 0 rgba(0,0,0,.28);-webkit-text-stroke:1px rgba(0,0,0,.12)}
+  #toast.good{background:linear-gradient(180deg,#9be86b,#34ac4b)}
+  #toast.bad{background:linear-gradient(180deg,#ff8a5c,#ef4436)}
+  /* 양쪽 반짝이 별 */
+  #toast::before,#toast::after{content:"";position:absolute;top:-22px;width:40px;height:40px;background:#fff14d;
+    clip-path:polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);
+    filter:drop-shadow(0 2px 2px rgba(0,0,0,.25));opacity:0}
+  #toast::before{left:-14px;transform:rotate(-18deg)}
+  #toast::after{right:-14px;transform:rotate(18deg)}
+  #toast.show{animation:toastPop 1.2s cubic-bezier(.2,1.4,.4,1)}
+  #toast.show::before{animation:twinkle 1.2s ease-out}
+  #toast.show::after{animation:twinkle 1.2s ease-out .08s}
+  @keyframes toastPop{
+    0%{opacity:0;transform:translate(-50%,-50%) scale(.3) rotate(-8deg)}
+    15%{opacity:1;transform:translate(-50%,-50%) scale(1.18) rotate(3deg)}
+    30%{transform:translate(-50%,-50%) scale(.96) rotate(-2deg)}
+    45%{transform:translate(-50%,-50%) scale(1.05) rotate(1deg)}
+    60%{transform:translate(-50%,-50%) scale(1) rotate(0)}
+    82%{opacity:1;transform:translate(-50%,-50%) scale(1)}
+    100%{opacity:0;transform:translate(-50%,-50%) scale(.92)}}
+  @keyframes twinkle{0%{opacity:0;transform:scale(.2) rotate(0)}
+    30%{opacity:1;transform:scale(1.2) rotate(90deg)}70%{opacity:1;transform:scale(1) rotate(160deg)}100%{opacity:0}}
+  /* 색종이(컨페티) */
+  .confetti{position:absolute;left:50%;top:44%;width:12px;height:14px;z-index:39;border-radius:2px;
+    pointer-events:none;animation:conf .95s ease-out forwards}
+  @keyframes conf{
+    0%{opacity:1;transform:translate(-50%,-50%) rotate(0)}
+    100%{opacity:0;transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) rotate(var(--rot))}}
+  #next{display:none} /* 투명 화살표 이미지 + CSS 텍스트, JS로 표시 토글 */
+  .nextTxt{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    padding-right:22px; /* 화살촉(오른쪽) 피해 살짝 왼쪽 */
+    font-family:'Jua',sans-serif;font-size:34px;color:#ffe07a;
+    -webkit-text-stroke:4px #4a2a12;paint-order:stroke fill;
+    text-shadow:0 2px 0 rgba(0,0,0,.25);pointer-events:none}
+
+  /* ===== 발음 평가 팝업 ===== */
+  #evalModal{position:absolute;inset:0;z-index:60;display:none;align-items:center;justify-content:center;
+    background:rgba(18,38,18,.55)}
+  #evalModal.on{display:flex}
+  .evalCard{width:520px;max-width:86%;padding:32px 40px 28px;border-radius:36px;text-align:center;
+    background:linear-gradient(180deg,#fffef4,#ffe9c2);border:6px solid #fff;
+    box-shadow:0 18px 44px rgba(0,0,0,.45),inset 0 4px 0 rgba(255,255,255,.7);
+    font-family:'Jua',sans-serif;color:#5a3410;animation:cardIn .4s cubic-bezier(.2,1.4,.4,1)}
+  @keyframes cardIn{0%{opacity:0;transform:scale(.6) translateY(20px)}100%{opacity:1;transform:none}}
+  .evalTitle{font-size:30px;color:#a3641f}
+  .evalWord{font-size:82px;line-height:1;margin:4px 0 12px;color:#3a7d2c;
+    text-shadow:0 3px 0 rgba(0,0,0,.12)}
+  .evalStars{display:flex;justify-content:center;gap:14px;margin:4px 0 10px}
+  .evalStars i{width:56px;height:56px;display:block;background:#ddd6c6}
+  .evalStars i{clip-path:polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%)}
+  .evalStars i.on{background:#ffc531;filter:drop-shadow(0 3px 2px rgba(0,0,0,.25));animation:starPop .5s}
+  @keyframes starPop{0%{transform:scale(0)}70%{transform:scale(1.3)}100%{transform:scale(1)}}
+  .evalScore{font-size:38px;color:#e8663b}
+  .evalHeard{font-size:22px;color:#8a6a45;margin:4px 0 2px;min-height:26px}
+  .evalMsg{font-size:34px;margin:8px 0 6px}
+  .evalBonus{font-size:28px;color:#e0952a;min-height:30px;margin:0 0 14px}
+  #evalModal.good .evalMsg{color:#34ac4b}
+  #evalModal.ok .evalMsg{color:#e0952a}
+  #evalModal.bad .evalMsg{color:#e8663b}
+  .evalBtns{display:flex;gap:16px;justify-content:center}
+  .evalBtns button{cursor:pointer;font-family:'Jua',sans-serif;font-size:26px;color:#fff;border:0;
+    border-radius:30px;padding:12px 30px}
+  .evalBtns button:active{transform:translateY(3px)}
+  #evalRetry{background:#4fa8c7;box-shadow:0 5px 0 #327a93}
+  #evalClose{background:#e8663b;box-shadow:0 5px 0 #a53c1c}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+
+    <!-- ===================== INTRO ===================== -->
+    <section class="screen on" id="introScreen">
+      <div class="a" style="left:251px;top:102px;width:777px;height:516px;filter:drop-shadow(0 10px 10px rgba(0,0,0,.25))">
+        <img src="assets/logo.png" alt="" style="object-fit:contain"></div>
+      <div class="startHint" id="startHint">터치해서 시작하기 ▶</div>
+    </section>
+
+    <!-- ===================== GAME ===================== -->
+    <section class="screen" id="gameScreen">
+      <!-- top-left buttons -->
+      <div class="a btn" id="btnHome" style="left:20px;top:20px;width:80.879px;height:80px;z-index:7">
+        <img src="assets/btn_home.png" alt="Home"></div>
+      <div class="a btn" id="btnSetting" style="left:111px;top:20px;width:80.879px;height:80px;z-index:7">
+        <img src="assets/btn_setting.png" alt="Setting"></div>
+
+      <!-- life board → 진행 표시 (푼 문제 수 / 전체) -->
+      <div class="a" style="left:540px;top:20px;width:200px;height:80px">
+        <img src="assets/life_board.png" alt=""></div>
+      <div id="progress">0/3</div>
+
+      <!-- point board + score -->
+      <div class="a" style="left:1042px;top:25px;width:218.4px;height:120px">
+        <img src="assets/point_board.png" alt=""></div>
+      <div id="score">180</div>
+
+      <!-- main board -->
+      <div class="a" style="left:360px;top:210px;width:560px;height:295px">
+        <img src="assets/board.png" alt=""></div>
+
+      <!-- lion mascot -->
+      <div class="a" style="left:14px;top:250px;width:416px;height:578px;z-index:5">
+        <img src="assets/lion.png" alt="" style="object-fit:contain"></div>
+
+      <!-- instruction -->
+      <div id="instruction">단어를 완성하고 발음해봐!</div>
+
+      <!-- picture (cat/bat) + shadow -->
+      <div class="a" id="picShadow" style="left:594px;top:298px;width:90px;height:16px;z-index:3">
+        <img src="assets/shadow.svg" alt=""></div>
+      <div class="a" id="pic" style="left:554px;top:159px;width:145px;height:160px;z-index:4">
+        <span id="picFb"></span>
+        <img id="picImg" src="assets/img_cat.png" alt="" style="object-fit:contain" onerror="this.style.display='none'"></div>
+
+      <!-- word slots: 3칸 모두 빈칸으로 시작 -->
+      <div class="a slot" data-i="0" style="left:387px;top:318px;width:157px;height:156px;z-index:6">
+        <img src="assets/alphabet_blank.png" alt="" onerror="this.style.display='none'"></div>
+      <div class="a slot" data-i="1" style="left:562px;top:318px;width:157px;height:156px;z-index:6">
+        <img src="assets/alphabet_blank.png" alt="" onerror="this.style.display='none'"></div>
+      <div class="a slot" data-i="2" style="left:737px;top:318px;width:157px;height:156px;z-index:6">
+        <img src="assets/alphabet_blank.png" alt="" onerror="this.style.display='none'"></div>
+
+      <!-- right buttons -->
+      <div class="a btn" id="btnReplay" style="left:835px;top:239px;width:59px;height:60px;z-index:7">
+        <img src="assets/btn_replay.png" alt="Replay"></div>
+      <div class="a btn" id="btnMic" style="left:939px;top:230px;width:119px;height:120px;z-index:7">
+        <img id="micImg" src="assets/btn_mic.png" alt="Mic"></div>
+      <div class="a btn" id="btnSpeak" style="left:940px;top:360px;width:118px;height:120px;z-index:7">
+        <img id="speakImg" src="assets/btn_speak_off.png" alt="Speak"></div>
+
+      <!-- word tray -->
+      <div class="a" style="left:303px;top:580px;width:675px;height:120px;z-index:5">
+        <img src="assets/word_board.png" alt=""></div>
+
+      <!-- draggable option tiles (레벨마다 글자 배정) -->
+      <div class="a opt" style="left:338px;top:592px;width:90px;height:90px"><img alt="" onerror="this.style.display='none'"></div>
+      <div class="a opt" style="left:464px;top:592px;width:90px;height:90px"><img alt="" onerror="this.style.display='none'"></div>
+      <div class="a opt" style="left:590px;top:592px;width:90px;height:90px"><img alt="" onerror="this.style.display='none'"></div>
+      <div class="a opt" style="left:715px;top:593px;width:90px;height:90px"><img alt="" onerror="this.style.display='none'"></div>
+      <div class="a opt" style="left:849px;top:593px;width:90px;height:90px"><img alt="" onerror="this.style.display='none'"></div>
+
+      <div id="toast"></div>
+      <div class="a btn" id="next" style="left:1042px;top:590px;width:165px;height:94px;z-index:30">
+        <img src="assets/btn_next.png" alt="Next" style="object-fit:contain">
+        <span class="nextTxt">Next</span></div>
+
+      <!-- 발음 평가 팝업 -->
+      <div id="evalModal">
+        <div class="evalCard">
+          <div class="evalTitle">발음 평가</div>
+          <div class="evalWord" id="evalWord">cat</div>
+          <div class="evalStars" id="evalStars"><i></i><i></i><i></i></div>
+          <div class="evalScore" id="evalScore">0점</div>
+          <div class="evalHeard" id="evalHeard">들린 발음: —</div>
+          <div class="evalMsg" id="evalMsg">완벽해요!</div>
+          <div class="evalBonus" id="evalBonus"></div>
+          <div class="evalBtns">
+            <button id="evalRetry">다시 하기</button>
+            <button id="evalClose">닫기</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  const stage=document.getElementById('stage'), app=document.getElementById('app');
+  function fit(){
+    const s=Math.min(app.clientWidth/1280, app.clientHeight/720);
+    stage.style.transform='scale('+s+')';
+  }
+  window.addEventListener('resize',fit); fit();
+
+  // ---- screen switch ----
+  const intro=document.getElementById('introScreen'), game=document.getElementById('gameScreen');
+  function start(){ intro.classList.remove('on'); game.classList.add('on'); newRound(); solved.clear(); li=0; loadLevel(); }
+  intro.addEventListener('click',start);
+
+  // ---- levels: 3칸 모두 빈칸, 순서대로 채우기 ----
+  // 전체 단어 풀 (파닉스 소리 중심). 그림: assets/img_<word>.png
+  const WORDS=[
+    {word:'cat', distractors:['s','b']},
+    {word:'bat', distractors:['f','p']},
+    {word:'fan', distractors:['p','b']}, // f ↔ p
+    {word:'van', distractors:['b','f']}, // v ↔ b
+    {word:'rat', distractors:['l','s']}, // r ↔ l
+    {word:'log', distractors:['r','b']}, // l ↔ r
+    {word:'bus', distractors:['v','p']}, // b ↔ v
+    {word:'pig', distractors:['f','b']}, // p ↔ f
+    {word:'fox', distractors:['p','s']}, // f ↔ p
+    {word:'sun', distractors:['f','l']}, // s
+    {word:'cup', distractors:['b','f']}, // 단모음 u ↔ a
+    {word:'bed', distractors:['v','p']}  // b ↔ v / 단모음 e
+  ].map(l=>({ ...l, pic:'assets/img_'+l.word+'.png', picBox:{l:540,t:150,w:200,h:165} }));
+
+  const ROUND=3;          // 한 판에 3문제
+  let levels=[];          // 이번 판에 뽑힌 3개 (랜덤)
+  function newRound(){ levels = shuffle(WORDS.slice()).slice(0, ROUND); }
+
+  // 글자 타일: 컴포넌트 카드 1개(assets/alphabet_<글자>.png)를 슬롯/트레이에 사이즈만 줄여 사용
+  const tilePath = l => 'assets/alphabet_'+l+'.png';
+  const shuffle=a=>{ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; };
+
+  let li=0, score=180;
+  const solved=new Set(); // 푼 문제(레벨) 인덱스 → 하트로 표시
+  let phase='spell', bonusClaimed=false; // spell → speak(발음 보너스 단계)
+  const scoreEl=document.getElementById('score');
+  const progressEl=document.getElementById('progress');
+  const pic=document.getElementById('pic'), picImg=document.getElementById('picImg'), picFb=document.getElementById('picFb');
+  const slotEls=[...document.querySelectorAll('.slot')];
+  const optEls=[...document.querySelectorAll('.opt')];
+  let filled=0;
+  const toast=document.getElementById('toast'), nextBtn=document.getElementById('next');
+
+  function renderProgress(){ progressEl.textContent=solved.size+'/'+levels.length; } // 푼 문제 수
+  function say(text){ try{ const u=new SpeechSynthesisUtterance(text); u.lang='en-US'; u.rate=.8; speechSynthesis.cancel(); speechSynthesis.speak(u);}catch(e){} }
+  // 마지막 글자 발음 → 끝나면 전체 단어 읽기
+  function sayLetterThenWord(word){
+    const letter=word.slice(-1);
+    try{
+      const u=new SpeechSynthesisUtterance(letter); u.lang='en-US'; u.rate=.8;
+      u.onend=()=>{ setTimeout(()=>say(word), 250); };
+      speechSynthesis.cancel(); speechSynthesis.speak(u);
+    }catch(e){ say(word); }
+  }
+  function showToast(t,type){
+    toast.textContent=t; toast.className=''; if(type) toast.classList.add(type);
+    void toast.offsetWidth; toast.classList.add('show');
+    if(type==='good') confetti();
+  }
+  function confetti(){
+    const colors=['#ffd23f','#ff6b6b','#4fd1c5','#8ee06b','#7aa2ff','#ff9f1c','#ffffff'];
+    for(let i=0;i<22;i++){
+      const p=document.createElement('div'); p.className='confetti';
+      const ang=Math.PI*2*Math.random(), dist=120+Math.random()*170;
+      p.style.setProperty('--dx',(Math.cos(ang)*dist).toFixed(0)+'px');
+      p.style.setProperty('--dy',(Math.sin(ang)*dist-40).toFixed(0)+'px');
+      p.style.setProperty('--rot',(Math.random()*720-360).toFixed(0)+'deg');
+      p.style.background=colors[i%colors.length];
+      p.style.animationDelay=(Math.random()*.06).toFixed(2)+'s';
+      game.appendChild(p);
+      setTimeout(()=>p.remove(),1050);
+    }
+  }
+
+  function loadLevel(){
+    const lv=levels[li];
+    const letters=lv.word.split('');   // 정답 글자(순서)
+    // picture (position/size per level) — 그림 없으면 단어 텍스트로 표시
+    pic.style.left=lv.picBox.l+'px'; pic.style.top=lv.picBox.t+'px';
+    pic.style.width=lv.picBox.w+'px'; pic.style.height=lv.picBox.h+'px';
+    picFb.textContent=lv.word; picImg.style.display=''; picImg.src=lv.pic;
+    // 슬롯 3칸 모두 빈칸으로 + 칸별 기대 글자 지정
+    slotEls.forEach((s,i)=>{ s.classList.remove('hot','filled'); s.dataset.exp=letters[i]||'';
+      const im=s.querySelector('img'); im.style.display=''; im.src='assets/alphabet_blank.png'; });
+    // 트레이: 정답 글자 3개 + distractor 2개 = 5개, 셔플
+    const pool=shuffle(letters.concat(shuffle(lv.distractors.slice())).slice(0,5));
+    optEls.forEach((o,i)=>{ const l=pool[i]; o.dataset.l=l;
+      const im=o.querySelector('img'); im.style.display=''; im.src=tilePath(l);
+      o.classList.remove('used'); o.style.left=o.dataset.ox; o.style.top=o.dataset.oy; });
+    filled=0;
+    nextBtn.style.display='none';
+    renderProgress();               // 진행 표시 반영
+    // 단어 완성 전: 발음(마이크) 잠금
+    phase='spell'; bonusClaimed=false;
+    btnMic.classList.add('locked'); btnMic.classList.remove('invite');
+    say(lv.word);
+  }
+
+  // ---- drag (pointer) ----
+  let drag=null, offX=0, offY=0, startL=0, startT=0;
+  const scale=()=>Math.min(app.clientWidth/1280, app.clientHeight/720);
+
+  optEls.forEach(o=>{
+    o.dataset.ox=o.style.left; o.dataset.oy=o.style.top;
+    o.addEventListener('pointerdown',e=>{
+      if(o.classList.contains('used'))return;
+      drag=o; o.classList.add('dragging'); o.setPointerCapture(e.pointerId);
+      startL=parseFloat(o.style.left); startT=parseFloat(o.style.top);
+      offX=e.clientX; offY=e.clientY;
+    });
+    o.addEventListener('pointermove',e=>{
+      if(drag!==o)return; const s=scale();
+      o.style.left=(startL+(e.clientX-offX)/s)+'px';
+      o.style.top =(startT+(e.clientY-offY)/s)+'px';
+      const hot=overSlotEl(o);
+      slotEls.forEach(sl=>sl.classList.toggle('hot', sl===hot && !sl.classList.contains('filled')));
+    });
+    o.addEventListener('pointerup',e=>{
+      if(drag!==o)return; drag=null; o.classList.remove('dragging');
+      slotEls.forEach(sl=>sl.classList.remove('hot'));
+      const s=overSlotEl(o);
+      if(s && !s.classList.contains('filled') && o.dataset.l===s.dataset.exp){ placeCorrect(o,s); }
+      else if(s && !s.classList.contains('filled')){ wrong(o); }
+      else { o.style.left=o.dataset.ox; o.style.top=o.dataset.oy; }
+    });
+  });
+
+  function centerOf(el){ const l=parseFloat(el.style.left), t=parseFloat(el.style.top);
+    return {x:l+el.offsetWidth/2, y:t+el.offsetHeight/2}; }
+  function overSlotEl(o){
+    const c=centerOf(o);
+    for(const s of slotEls){
+      const sl=parseFloat(s.style.left), st=parseFloat(s.style.top);
+      if(c.x>sl && c.x<sl+157 && c.y>st && c.y<st+156) return s;
+    }
+    return null;
+  }
+  function placeCorrect(o,s){
+    o.classList.add('used');
+    s.classList.add('filled');
+    const im=s.querySelector('img'); im.style.display=''; im.src=tilePath(o.dataset.l);
+    filled++;
+    if(filled===levels[li].word.length){ complete(); } // 마지막 글자→단어는 complete에서 처리
+    else { say(o.dataset.l); }                          // 중간 글자는 글자만 발음
+  }
+  function complete(){
+    score+=20; scoreEl.textContent=score;          // 단어 완성 기본 점수
+    solved.add(li); renderProgress();               // 진행 표시 갱신
+    // 발음 단계로 전환 → 마이크 활성화 + "발음해봐!" 초대
+    phase='speak';
+    btnMic.classList.remove('locked'); btnMic.classList.add('invite');
+    showToast('잘했어! 마이크를 눌러 발음해봐!','good');
+    sayLetterThenWord(levels[li].word); // 마지막 글자 발음 후 전체 단어 읽기
+    // Next는 숨김 유지 → 발음해야 나타남(openEval). 단, 음성인식 미지원 브라우저는 예외로 허용
+    if(!SR) nextBtn.style.display='block';
+  }
+  function wrong(o){
+    o.style.left=o.dataset.ox; o.style.top=o.dataset.oy;
+    showToast('다시!','bad');
+  }
+
+  nextBtn.addEventListener('click',()=>{
+    li++;
+    if(li>=levels.length){ newRound(); solved.clear(); li=0; } // 새 라운드(랜덤 3개)
+    loadLevel();
+  });
+
+  // ---- buttons ----
+  const btnSpeak=document.getElementById('btnSpeak'); // 🔊 스피크: 단어 듣기(TTS)
+  const btnMic=document.getElementById('btnMic');     // 🎤 마이크: 발음 → 평가 팝업
+  const micImg=document.getElementById('micImg'), speakImg=document.getElementById('speakImg');
+  const MIC_OFF='assets/btn_mic.png', MIC_ON='assets/btn_mic_on.png';
+  const SPK_OFF='assets/btn_speak_off.png', SPK_ON='assets/btn_speak.png';
+
+  // 🔊 스피크 = 단어 듣기 (재생 중엔 초록 ON, 끝나면 주황 OFF)
+  btnSpeak.addEventListener('click',()=>{
+    speakImg.src=SPK_ON;
+    try{
+      const u=new SpeechSynthesisUtterance(levels[li].word); u.lang='en-US'; u.rate=.8;
+      u.onend=()=>{ speakImg.src=SPK_OFF; };
+      speechSynthesis.cancel(); speechSynthesis.speak(u);
+    }catch(e){ speakImg.src=SPK_OFF; }
+  });
+  // 🔁 리플레이 = 현재 문제를 풀에서 다른 단어로 랜덤 교체 + 초기화
+  document.getElementById('btnReplay').addEventListener('click',()=>{
+    const used=new Set(levels.map(l=>l.word));
+    const cand=WORDS.filter(w=>!used.has(w.word));
+    if(cand.length){ levels[li]=cand[Math.floor(Math.random()*cand.length)]; solved.delete(li); }
+    loadLevel();
+  });
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  let recog=null, recording=false, activeBtn=null;
+
+  function levenshtein(a,b){
+    const m=a.length,n=b.length,d=[];
+    for(let i=0;i<=m;i++){ d[i]=[i]; }
+    for(let j=0;j<=n;j++){ d[0][j]=j; }
+    for(let i=1;i<=m;i++) for(let j=1;j<=n;j++)
+      d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));
+    return d[m][n];
+  }
+
+  // 마이크/스피크 공통: 녹음 → 발음 평가
+  function startPractice(btn){
+    if(recording){ if(recog) recog.stop(); return; }
+    if(phase!=='speak'){ showToast('먼저 단어를 완성해줘!','bad'); return; } // 완성 후에만 발음
+    if(!SR){ showToast('이 브라우저는 음성 인식 미지원','bad'); return; }
+    recog=new SR(); recog.lang='en-US'; recog.interimResults=false; recog.maxAlternatives=5;
+    recording=true; activeBtn=btn; btn.classList.add('recording'); micImg.src=MIC_ON; showToast('발음해보세요!');
+    let got=false, errCode='';
+    recog.onresult=(e)=>{
+      got=true;
+      const target=levels[li].word.toLowerCase();
+      const r=e.results[0]; let said='', conf=0;
+      for(let i=0;i<r.length;i++){
+        const t=(r[i].transcript||'').trim().toLowerCase();
+        if(i===0){ said=t; conf=r[i].confidence||0; }
+        if(t===target){ said=t; conf=Math.max(conf,r[i].confidence||0.9); break; }
+      }
+      const sim=said?1-levenshtein(said,target)/Math.max(said.length,target.length):0;
+      let pct=Math.round((sim*0.7+(conf||sim)*0.3)*100);
+      if(said===target) pct=Math.max(pct,95);
+      pct=Math.max(0,Math.min(100,pct));
+      openEval(target, said, pct);
+    };
+    recog.onerror=(e)=>{ errCode=(e&&e.error)||''; };
+    recog.onend=()=>{
+      recording=false; if(activeBtn) activeBtn.classList.remove('recording'); activeBtn=null; recog=null;
+      micImg.src=MIC_OFF; // 마이크 원래(주황)로 복귀
+      // 실제로 발음을 했을 때만(onresult) 평가 팝업이 뜬다. 소리가 없으면 안내만.
+      if(!got){
+        if(errCode==='not-allowed'||errCode==='service-not-allowed') showToast('마이크 권한을 허용해주세요','bad');
+        else showToast('소리가 안 들렸어요, 다시 눌러 말해보세요','bad');
+      }
+    };
+    try{ recog.start(); }
+    catch(err){ recording=false; btn.classList.remove('recording'); micImg.src=MIC_OFF; }
+  }
+  btnMic.addEventListener('click',()=>startPractice(btnMic));
+
+  // ---- 평가 팝업 ----
+  const evalModal=document.getElementById('evalModal');
+  function openEval(word, said, pct){
+    const stars = pct>=80?3 : pct>=50?2 : pct>=20?1 : 0;
+    document.getElementById('evalWord').textContent=word;
+    document.getElementById('evalScore').textContent=pct+'점';
+    document.getElementById('evalHeard').textContent='들린 발음: '+(said||'—');
+    document.getElementById('evalMsg').textContent =
+      !said ? '소리가 안 들렸어요' : pct>=80 ? '완벽해요!' : pct>=50 ? '좋아요! 조금만 더!' : '다시 해볼까?';
+    document.querySelectorAll('#evalStars i').forEach((s,i)=>s.classList.toggle('on', i<stars));
+    evalModal.className='on '+(pct>=80?'good':pct>=50?'ok':'bad');
+    // 발음 보너스: 별점에 따라 3★+30 / 2★+20 / 1★+10 (레벨당 1회)
+    let bonus=0;
+    if(phase==='speak' && !bonusClaimed && said){
+      bonus = stars>=3?30 : stars===2?20 : stars===1?10 : 0;
+      if(bonus>0){ bonusClaimed=true; score+=bonus; scoreEl.textContent=score; btnMic.classList.remove('invite'); }
+    }
+    document.getElementById('evalBonus').textContent = bonus>0 ? ('보너스 +'+bonus+'점!') : '';
+    // 발음을 했으면(said) 다음 단어로 진행 가능
+    if(said){ btnMic.classList.remove('invite'); nextBtn.style.display='block'; }
+  }
+  document.getElementById('evalClose').addEventListener('click',()=>evalModal.classList.remove('on'));
+  document.getElementById('evalRetry').addEventListener('click',()=>{ evalModal.classList.remove('on'); startPractice(btnMic); });
+  evalModal.addEventListener('click',(e)=>{ if(e.target===evalModal) evalModal.classList.remove('on'); });
+  document.getElementById('btnHome').addEventListener('click',()=>{ game.classList.remove('on'); intro.classList.add('on'); });
+  document.getElementById('btnSetting').addEventListener('click',()=>showToast('설정'));
+
+  newRound(); renderProgress();
+})();
+</script>
+</body>
+</html>
