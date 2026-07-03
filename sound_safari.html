@@ -525,9 +525,17 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   let recog=null, recording=false, activeBtn=null;
 
-  // 녹음 UI 공통
-  function beginRec(btn){ recording=true; activeBtn=btn; btn.classList.add('recording'); micImg.src=MIC_ON; setLion('listen'); showInfo(1); }
-  function endRec(){ recording=false; if(activeBtn) activeBtn.classList.remove('recording'); activeBtn=null; micImg.src=MIC_OFF; }
+  // 녹음 UI 공통 (녹음 중엔 배경음악/TTS 정지 → 마이크 간섭 방지, 인식률↑)
+  let musicPrevMuted=null;
+  function beginRec(btn){
+    recording=true; activeBtn=btn; btn.classList.add('recording'); micImg.src=MIC_ON; setLion('listen'); showInfo(1);
+    try{ speechSynthesis.cancel(); }catch(e){}                                   // 단어 TTS 중지
+    try{ if(bgVideo){ musicPrevMuted=bgVideo.muted; bgVideo.muted=true; } }catch(e){} // 배경음악 잠시 음소거
+  }
+  function endRec(){
+    recording=false; if(activeBtn) activeBtn.classList.remove('recording'); activeBtn=null; micImg.src=MIC_OFF;
+    try{ if(bgVideo && musicPrevMuted!==null){ bgVideo.muted=musicPrevMuted; musicPrevMuted=null; } }catch(e){} // 배경음악 복구
+  }
 
   // 발음 시작 — Azure(음소별) 우선, 없으면 Web Speech(간이)
   function startPractice(btn){
