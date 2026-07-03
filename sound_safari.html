@@ -21,16 +21,16 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
 <style>
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
   html,body{height:100%;overflow:hidden;background:#0d1b10;font-family:'Fredoka',sans-serif}
+  /* 배경 이미지를 화면 전체에 풀로(cover) 한 겹만 */
   #app{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
     background:#0d1b10 url("assets/bg.png") center center / cover no-repeat}
 
-  /* 1280x720 stage, scaled to fit — Figma 좌표 그대로 유지 (라운드/그림자 없음) */
-  /* 배경은 stage에 '전체 그림'으로 채워 Figma 프레임과 동일하게(가운데 밝은 밴드 확대 방지) */
-  #stage{position:relative;width:1280px;height:720px;transform-origin:center center;overflow:hidden;
-    background:url("assets/bg.png") center center / 100% 100% no-repeat}
+  /* 1280x720 stage, scaled to fit — Figma 좌표 그대로 유지 (배경은 #app 한 곳에만, stage는 투명) */
+  #stage{position:relative;width:1280px;height:720px;transform-origin:center center;overflow:hidden}
 
   .screen{position:absolute;inset:0;display:none}
   .screen.on{display:block}
+  .screen:not(.on){pointer-events:none} /* 숨은 화면이 클릭 가로채지 않도록 */
 
   /* asset node: exact Figma coords, image fills the box */
   .a{position:absolute}
@@ -68,16 +68,10 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
   .slot > img,.opt > img{object-fit:contain} /* 카드 원본 비율 유지하며 축소 */
   .slot.filled > img{animation:tilePop .35s}
   @keyframes tilePop{0%{transform:scale(.4)}70%{transform:scale(1.15)}100%{transform:scale(1)}}
-  /* 진행 표시 (푼 문제 / 전체) */
-  #progress{position:absolute;left:540px;top:32px;width:200px;text-align:center;color:#fff;
-    font-family:'Fredoka',sans-serif;font-weight:600;font-size:36px;text-shadow:0 2px 0 rgba(0,0,0,.3);z-index:6}
-  /* 그림 fallback (그림 준비 전 단어 표시) */
-  #picFb{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-    font-family:'Jua',sans-serif;color:#3a7d2c;font-size:40px;text-transform:lowercase;
-    text-shadow:0 0 6px #fff,0 0 6px #fff}
-
-  .heart.lost{filter:grayscale(1);opacity:.35}
-
+  /* 진행 하트: 안 푼 문제는 숨김, 푼 문제만 빨간 하트로 채워짐 */
+  .heart{opacity:0;transition:opacity .2s}
+  .heart.on{opacity:1;animation:heartPop .4s}
+  @keyframes heartPop{0%{transform:scale(.3)}70%{transform:scale(1.2)}100%{transform:scale(1)}}
   /* intro start hint */
   .startHint{position:absolute;left:50%;bottom:70px;transform:translateX(-50%);z-index:6;
     font-family:'Jua';color:#fff;font-size:30px;background:rgba(0,0,0,.35);padding:12px 34px;
@@ -177,10 +171,15 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
       <div class="a btn" id="btnSetting" style="left:111px;top:20px;width:80.879px;height:80px;z-index:7">
         <img src="assets/btn_setting.png" alt="Setting"></div>
 
-      <!-- life board → 진행 표시 (푼 문제 수 / 전체) -->
+      <!-- life board + 진행 하트 (푼 문제만 채워짐) -->
       <div class="a" style="left:540px;top:20px;width:200px;height:80px">
         <img src="assets/life_board.png" alt=""></div>
-      <div id="progress">0/3</div>
+      <div class="a heart" data-i="0" style="left:560px;top:37px;width:49px;height:47px">
+        <img src="assets/life_heart.png" alt=""></div>
+      <div class="a heart" data-i="1" style="left:615px;top:37px;width:49px;height:47px">
+        <img src="assets/life_heart.png" alt=""></div>
+      <div class="a heart" data-i="2" style="left:670px;top:37px;width:49px;height:47px">
+        <img src="assets/life_heart.png" alt=""></div>
 
       <!-- point board + score -->
       <div class="a" style="left:1042px;top:25px;width:218.4px;height:120px">
@@ -202,7 +201,6 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
       <div class="a" id="picShadow" style="left:594px;top:298px;width:90px;height:16px;z-index:3">
         <img src="assets/shadow.svg" alt=""></div>
       <div class="a" id="pic" style="left:554px;top:159px;width:145px;height:160px;z-index:4">
-        <span id="picFb"></span>
         <img id="picImg" src="assets/img_cat.png" alt="" style="object-fit:contain" onerror="this.style.display='none'"></div>
 
       <!-- word slots: 3칸 모두 빈칸으로 시작 -->
@@ -269,7 +267,7 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
 
   // ---- screen switch ----
   const intro=document.getElementById('introScreen'), game=document.getElementById('gameScreen');
-  function start(){ intro.classList.remove('on'); game.classList.add('on'); newRound(); solved.clear(); li=0; loadLevel(); }
+  function start(){ if(!intro.classList.contains('on'))return; intro.classList.remove('on'); game.classList.add('on'); newRound(); solved.clear(); li=0; loadLevel(); }
   intro.addEventListener('click',start);
 
   // ---- levels: 3칸 모두 빈칸, 순서대로 채우기 ----
@@ -301,14 +299,14 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
   const solved=new Set(); // 푼 문제(레벨) 인덱스 → 하트로 표시
   let phase='spell', bonusClaimed=false; // spell → speak(발음 보너스 단계)
   const scoreEl=document.getElementById('score');
-  const progressEl=document.getElementById('progress');
-  const pic=document.getElementById('pic'), picImg=document.getElementById('picImg'), picFb=document.getElementById('picFb');
+  const heartEls=[...document.querySelectorAll('.heart')];
+  const pic=document.getElementById('pic'), picImg=document.getElementById('picImg');
   const slotEls=[...document.querySelectorAll('.slot')];
   const optEls=[...document.querySelectorAll('.opt')];
   let filled=0;
   const toast=document.getElementById('toast'), nextBtn=document.getElementById('next');
 
-  function renderProgress(){ progressEl.textContent=solved.size+'/'+levels.length; } // 푼 문제 수
+  function renderHearts(){ heartEls.forEach((h,i)=>h.classList.toggle('on', solved.has(i))); } // 푼 문제만 하트
   function say(text){ try{ const u=new SpeechSynthesisUtterance(text); u.lang='en-US'; u.rate=.8; speechSynthesis.cancel(); speechSynthesis.speak(u);}catch(e){} }
   // 마지막 글자 발음 → 끝나면 전체 단어 읽기
   function sayLetterThenWord(word){
@@ -345,7 +343,7 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
     // picture (position/size per level) — 그림 없으면 단어 텍스트로 표시
     pic.style.left=lv.picBox.l+'px'; pic.style.top=lv.picBox.t+'px';
     pic.style.width=lv.picBox.w+'px'; pic.style.height=lv.picBox.h+'px';
-    picFb.textContent=lv.word; picImg.style.display=''; picImg.src=lv.pic;
+    picImg.style.display=''; picImg.src=lv.pic;
     // 슬롯 3칸 모두 빈칸으로 + 칸별 기대 글자 지정
     slotEls.forEach((s,i)=>{ s.classList.remove('hot','filled'); s.dataset.exp=letters[i]||'';
       const im=s.querySelector('img'); im.style.display=''; im.src='assets/alphabet_blank.png'; });
@@ -356,7 +354,7 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
       o.classList.remove('used'); o.style.left=o.dataset.ox; o.style.top=o.dataset.oy; });
     filled=0;
     nextBtn.style.display='none';
-    renderProgress();               // 진행 표시 반영
+    renderHearts();               // 진행 표시 반영
     // 단어 완성 전: 발음(마이크) 잠금
     phase='spell'; bonusClaimed=false;
     btnMic.classList.add('locked'); btnMic.classList.remove('invite');
@@ -371,6 +369,7 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
     o.dataset.ox=o.style.left; o.dataset.oy=o.style.top;
     o.addEventListener('pointerdown',e=>{
       if(o.classList.contains('used'))return;
+      e.preventDefault(); // 드래그 뒤 유령 클릭(홈 버튼 등 오작동) 방지
       drag=o; o.classList.add('dragging'); o.setPointerCapture(e.pointerId);
       startL=parseFloat(o.style.left); startT=parseFloat(o.style.top);
       offX=e.clientX; offY=e.clientY;
@@ -412,7 +411,7 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
   }
   function complete(){
     score+=20; scoreEl.textContent=score;          // 단어 완성 기본 점수
-    solved.add(li); renderProgress();               // 진행 표시 갱신
+    solved.add(li); renderHearts();               // 진행 표시 갱신
     // 발음 단계로 전환 → 마이크 활성화 + "발음해봐!" 초대
     phase='speak';
     btnMic.classList.remove('locked'); btnMic.classList.add('invite');
@@ -532,7 +531,7 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
   document.getElementById('btnHome').addEventListener('click',()=>{ game.classList.remove('on'); intro.classList.add('on'); });
   document.getElementById('btnSetting').addEventListener('click',()=>showToast('설정'));
 
-  newRound(); renderProgress();
+  newRound(); renderHearts();
 })();
 </script>
 </body>
