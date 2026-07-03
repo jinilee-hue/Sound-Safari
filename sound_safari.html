@@ -528,9 +528,10 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
   // 녹음 UI 공통 (녹음 중엔 배경음악/TTS 정지 → 마이크 간섭 방지, 인식률↑)
   let musicPrevMuted=null;
   function beginRec(btn){
-    recording=true; activeBtn=btn; btn.classList.add('recording'); micImg.src=MIC_ON; setLion('listen'); showInfo(1);
+    recording=true; activeBtn=btn; btn.classList.add('recording'); micImg.src=MIC_ON; setLion('listen');
     try{ speechSynthesis.cancel(); }catch(e){}                                   // 단어 TTS 중지
     try{ if(bgVideo){ musicPrevMuted=bgVideo.muted; bgVideo.muted=true; } }catch(e){} // 배경음악 잠시 음소거
+    // showInfo(1)은 마이크가 실제로 켜진 뒤 호출(타이밍 문제 방지)
   }
   function endRec(){
     recording=false; if(activeBtn) activeBtn.classList.remove('recording'); activeBtn=null; micImg.src=MIC_OFF;
@@ -550,6 +551,7 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
   function webSpeechAssess(btn){
     recog=new SR(); recog.lang='en-US'; recog.interimResults=false; recog.maxAlternatives=5;
     beginRec(btn);
+    recog.onaudiostart=()=>showInfo(1); // 마이크 켜진 뒤 "발음해보세요!"
     let got=false, errCode='';
     recog.onresult=(e)=>{
       got=true;
@@ -588,6 +590,8 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
         SDK.PronunciationAssessmentGranularity.Phoneme, true);
       try{ pac.phonemeAlphabet='IPA'; }catch(e){}
       pac.applyTo(rec);
+      rec.sessionStarted=()=>{ console.log('[azure] 마이크 세션 시작'); showInfo(1); }; // 실제 녹음 시작 시 안내
+      rec.speechStartDetected=()=>console.log('[azure] 음성 감지됨');
     }catch(e){ console.error('[azure] config 실패', e); endRec(); setLion('idle'); showInfo(4); return; }
     rec.recognizeOnceAsync(res=>{
       endRec(); let ok=false;
