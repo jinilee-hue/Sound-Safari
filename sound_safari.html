@@ -303,7 +303,7 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
 (function(){
   // ===== Azure 발음평가 설정 =====
   // 배포한 토큰 서버 URL을 넣으면 음소별 정확 평가(Azure) 사용. 비우면 간이(Web Speech) 평가.
-  const AZURE_TOKEN_URL = ''; // 예: 'https://your-worker.workers.dev/token'
+  const AZURE_TOKEN_URL = 'https://sound-safari-token.jini-lee.workers.dev/';
 
   const stage=document.getElementById('stage'), app=document.getElementById('app');
   const bgVideo=document.getElementById('bgVideo');
