@@ -298,6 +298,7 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
 <script>
 (function(){
   const stage=document.getElementById('stage'), app=document.getElementById('app');
+  const bgVideo=document.getElementById('bgVideo');
   function fit(){
     const s=app.clientWidth/1280;   // 콘텐츠 영역 가로 100% (폭 꽉 채움)
     stage.style.transform='scale('+s+')';
@@ -306,7 +307,10 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
 
   // ---- screen switch ----
   const intro=document.getElementById('introScreen'), game=document.getElementById('gameScreen');
-  function start(){ if(!intro.classList.contains('on'))return; intro.classList.remove('on'); game.classList.add('on'); newRound(); solved.clear(); li=0; loadLevel(); }
+  function start(){ if(!intro.classList.contains('on'))return; intro.classList.remove('on'); game.classList.add('on');
+    // 사용자 제스처(시작 터치)로 배경음악 음소거 해제
+    try{ bgVideo.muted=false; bgVideo.volume=.35; bgVideo.play(); }catch(e){}
+    newRound(); solved.clear(); li=0; loadLevel(); }
   intro.addEventListener('click',start);
 
   // ---- levels: 3칸 모두 빈칸, 순서대로 채우기 ----
@@ -610,7 +614,11 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
   document.getElementById('evalClose').addEventListener('click',()=>evalModal.classList.remove('on'));
   document.getElementById('evalRetry').addEventListener('click',()=>{ evalModal.classList.remove('on'); startPractice(btnMic); });
   document.getElementById('btnHome').addEventListener('click',()=>{ game.classList.remove('on'); intro.classList.add('on'); });
-  document.getElementById('btnSetting').addEventListener('click',()=>showToast('설정'));
+  document.getElementById('btnSetting').addEventListener('click',()=>{
+    bgVideo.muted=!bgVideo.muted;                 // 배경음악 켬/끔 토글
+    if(!bgVideo.muted){ bgVideo.volume=.35; bgVideo.play().catch(()=>{}); }
+    showToast(bgVideo.muted ? '음악 끔' : '음악 켬');
+  });
 
   // ---- 사자 마스코트: 상태별 이미지 + 애니메이션 ----
   const lion=document.getElementById('lion'), lionImg=document.getElementById('lionImg');
