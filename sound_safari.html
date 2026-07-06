@@ -157,7 +157,9 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
     text-shadow:0 2px 0 rgba(0,0,0,.25);pointer-events:none}
 
   /* ===== 설정 팝업 ===== */
-  #setModal{position:absolute;inset:0;z-index:60;display:none;background:rgba(14,30,14,.55)}
+  #setModal{position:absolute;inset:0;z-index:60;display:none}
+  /* dim: stage 밖(레터박스)까지 덮도록 크게 확장 */
+  .mdim{position:absolute;inset:-1500px;background:rgba(14,30,14,.55);z-index:0}
   #setModal.on{display:block}
   #setModal .pop{position:absolute;inset:0;animation:evalIn .4s cubic-bezier(.2,1.4,.4,1)}
   #setModal img{position:absolute;pointer-events:none}
@@ -169,10 +171,10 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
     border-radius:30px;padding:9px 30px;background:#34ac4b;box-shadow:0 4px 0 rgba(0,0,0,.28)}
   .setToggle.off{background:#a99}
   .setToggle:active{transform:translateY(3px)}
-  #setClose{left:554px;top:452px;width:170px;height:108px;cursor:pointer;pointer-events:auto}
+  #setClose{left:554px;top:520px;width:170px;height:108px;cursor:pointer;pointer-events:auto}
 
   /* ===== 발음 평가 팝업 (Figma: Sound Safari_발음평가, 스테이지 좌표 기준) ===== */
-  #evalModal{position:absolute;inset:0;z-index:60;display:none;background:rgba(14,30,14,.55)}
+  #evalModal{position:absolute;inset:0;z-index:60;display:none}
   #evalModal.on{display:block}
   #evalModal .pop{position:absolute;inset:0;animation:evalIn .4s cubic-bezier(.2,1.4,.4,1)}
   @keyframes evalIn{0%{opacity:0;transform:scale(.85)}100%{opacity:1;transform:none}}
@@ -294,6 +296,7 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
 
       <!-- 설정 팝업 -->
       <div id="setModal">
+        <div class="mdim"></div>
         <div class="pop">
           <img class="evalBoxImg" src="assets/pop_box.png" alt="">
           <div class="setTitle">설정</div>
@@ -305,6 +308,7 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
 
       <!-- 발음 평가 팝업 (Figma: Sound Safari_발음평가) -->
       <div id="evalModal">
+        <div class="mdim"></div>
         <div class="pop">
           <img class="evalBoxImg" src="assets/pop_box.png" alt="">
           <div class="evalTitle">발음평가</div>
