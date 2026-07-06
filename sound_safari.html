@@ -526,35 +526,17 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   let recog=null, recording=false, activeBtn=null;
 
-  // 마이크 입력 레벨 측정(진단): 실제로 소리가 들어오는지 콘솔에 기록
-  let micMeterStop=null;
-  async function startMicMeter(){
-    try{
-      const st=await navigator.mediaDevices.getUserMedia({audio:true});
-      const ac=new (window.AudioContext||window.webkitAudioContext)();
-      const an=ac.createAnalyser(); an.fftSize=512; ac.createMediaStreamSource(st).connect(an);
-      const buf=new Uint8Array(an.fftSize); let mx=0;
-      const iv=setInterval(()=>{ an.getByteTimeDomainData(buf); let m=0; for(let i=0;i<buf.length;i++){const d=Math.abs(buf[i]-128); if(d>m)m=d;} if(m>mx)mx=m; },150);
-      console.log('[mic] 사용 장치=', (st.getAudioTracks()[0]||{}).label||'(이름 없음)');
-      micMeterStop=()=>{ clearInterval(iv);
-        console.log('[mic] 최대 입력레벨(0~128)=', mx, mx<4?'→ ⚠️ 마이크 입력 거의 없음(장치/음소거 확인)':'→ 마이크 입력 정상');
-        st.getTracks().forEach(t=>t.stop()); try{ac.close()}catch(e){} micMeterStop=null; };
-    }catch(e){ console.error('[mic] 미터 실패(권한 거부?)', e); }
-  }
-
   // 녹음 UI 공통 (녹음 중엔 배경음악/TTS 정지 → 마이크 간섭 방지, 인식률↑)
   let musicPrevMuted=null;
   function beginRec(btn){
     recording=true; activeBtn=btn; btn.classList.add('recording'); micImg.src=MIC_ON; setLion('listen');
     try{ speechSynthesis.cancel(); }catch(e){}                                   // 단어 TTS 중지
     try{ if(bgVideo){ musicPrevMuted=bgVideo.muted; bgVideo.muted=true; } }catch(e){} // 배경음악 잠시 음소거
-    startMicMeter();                                                             // 입력 레벨 진단
     // showInfo(1)은 마이크가 실제로 켜진 뒤 호출(타이밍 문제 방지)
   }
   function endRec(){
     recording=false; if(activeBtn) activeBtn.classList.remove('recording'); activeBtn=null; micImg.src=MIC_OFF;
     try{ if(bgVideo && musicPrevMuted!==null){ bgVideo.muted=musicPrevMuted; musicPrevMuted=null; } }catch(e){} // 배경음악 복구
-    if(micMeterStop) micMeterStop();
   }
 
   // 발음 시작 — Azure(음소별) 우선, 없으면 Web Speech(간이)
