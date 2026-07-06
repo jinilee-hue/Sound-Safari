@@ -84,7 +84,7 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
   @keyframes heartPop{0%{transform:scale(.3)}70%{transform:scale(1.2)}100%{transform:scale(1)}}
   /* intro start hint (btn_start.png 이미지) */
   .startHint{position:absolute;left:50%;bottom:30px;transform:translateX(-50%);z-index:6;
-    width:220px;max-width:40%;height:auto;cursor:pointer;animation:pulse 1.4s infinite;
+    width:300px;max-width:52%;height:auto;cursor:pointer;animation:pulse 1.4s infinite;
     filter:drop-shadow(0 6px 8px rgba(0,0,0,.3))}
   @keyframes pulse{50%{transform:translateX(-50%) scale(1.06)}}
 
@@ -358,6 +358,7 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
   const slotEls=[...document.querySelectorAll('.slot')];
   const optEls=[...document.querySelectorAll('.opt')];
   let filled=0;
+  let idleHint=null, interacted=false; // 2초 무반응 시 단어 안내
   const toast=document.getElementById('toast'), nextBtn=document.getElementById('next');
   const infoToast=document.getElementById('infoToast');
   function showInfo(n){ // 안내 문구 이미지 (1~6)
@@ -426,7 +427,9 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
     phase='spell'; bonusClaimed=false;
     btnMic.classList.add('locked'); btnMic.classList.remove('invite');
     setLion('idle');                // 기본: 보드를 가리키는 사자
-    say(lv.word);
+    // 바로 말하지 않고, 2초간 반응(조작)이 없으면 단어를 읽어줌
+    interacted=false; clearTimeout(idleHint);
+    idleHint=setTimeout(()=>{ if(!interacted) say(lv.word); }, 2000);
   }
 
   // ---- drag (pointer) ----
@@ -436,6 +439,7 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
     o.dataset.ox=o.style.left; o.dataset.oy=o.style.top;
     o.addEventListener('pointerdown',e=>{
       if(o.classList.contains('used'))return;
+      interacted=true; clearTimeout(idleHint); // 사용자 반응 → 자동 안내 취소
       e.preventDefault(); // 드래그 뒤 유령 클릭(홈 버튼 등 오작동) 방지
       drag=o; o.classList.add('dragging'); o.setPointerCapture(e.pointerId);
       startL=parseFloat(o.style.left); startT=parseFloat(o.style.top);
@@ -510,6 +514,7 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
 
   // 🔊 스피크 = 단어 듣기 (재생 중엔 초록 ON, 끝나면 주황 OFF)
   btnSpeak.addEventListener('click',()=>{
+    interacted=true; clearTimeout(idleHint); // 사용자 반응
     speakImg.src=SPK_ON;
     try{
       const u=new SpeechSynthesisUtterance(levels[li].word); u.lang='en-US'; u.rate=.8;
