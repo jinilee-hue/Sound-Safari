@@ -308,7 +308,8 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
   const stage=document.getElementById('stage'), app=document.getElementById('app');
   const bgVideo=document.getElementById('bgVideo');
   function fit(){
-    const s=app.clientWidth/1280;   // 콘텐츠 영역 가로 100% (폭 꽉 채움)
+    // 가로/세로 중 맞는 쪽으로 맞춰 전체가 항상 보이게(반응형, 잘림 방지). 여백은 배경이 채움
+    const s=Math.min(app.clientWidth/1280, app.clientHeight/720);
     stage.style.transform='scale('+s+')';
   }
   window.addEventListener('resize',fit); fit();
@@ -428,7 +429,7 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
 
   // ---- drag (pointer) ----
   let drag=null, offX=0, offY=0, startL=0, startT=0;
-  const scale=()=>app.clientWidth/1280;
+  const scale=()=>Math.min(app.clientWidth/1280, app.clientHeight/720);
 
   optEls.forEach(o=>{
     o.dataset.ox=o.style.left; o.dataset.oy=o.style.top;
