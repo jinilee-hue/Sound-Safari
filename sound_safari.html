@@ -162,7 +162,7 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
   .mdim{position:absolute;inset:-1500px;background:rgba(14,30,14,.55);z-index:0}
   #setModal.on{display:block}
   #setModal .pop{position:absolute;inset:0;animation:evalIn .4s cubic-bezier(.2,1.4,.4,1)}
-  #setModal img{position:absolute;pointer-events:none}
+  #setModal img{position:absolute} /* 클릭 차단은 .evalBoxImg(박스)에만 적용됨 */
   .setTitle{position:absolute;left:353px;top:120px;width:573px;text-align:center;z-index:1;
     font-family:'Jua',sans-serif;font-size:40px;color:#fff;text-shadow:0 3px 0 rgba(0,0,0,.35)}
   .setRow{position:absolute;left:443px;width:393px;display:flex;align-items:center;justify-content:space-between;z-index:1}
