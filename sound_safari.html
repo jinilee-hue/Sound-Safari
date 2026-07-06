@@ -82,10 +82,10 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
   .heart{opacity:0;transition:opacity .2s}
   .heart.on{opacity:1;animation:heartPop .4s}
   @keyframes heartPop{0%{transform:scale(.3)}70%{transform:scale(1.2)}100%{transform:scale(1)}}
-  /* intro start hint */
-  .startHint{position:absolute;left:50%;bottom:70px;transform:translateX(-50%);z-index:6;
-    font-family:'Jua';color:#fff;font-size:30px;background:rgba(0,0,0,.35);padding:12px 34px;
-    border-radius:40px;animation:pulse 1.4s infinite}
+  /* intro start hint (btn_start.png 이미지) */
+  .startHint{position:absolute;left:50%;bottom:30px;transform:translateX(-50%);z-index:6;
+    width:360px;max-width:62%;height:auto;cursor:pointer;animation:pulse 1.4s infinite;
+    filter:drop-shadow(0 6px 8px rgba(0,0,0,.3))}
   @keyframes pulse{50%{transform:translateX(-50%) scale(1.06)}}
 
   /* 결과 이미지 (GOOD! / Try Again!) 팝업 */
@@ -200,7 +200,7 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
     <section class="screen on" id="introScreen">
       <div class="a" style="left:251px;top:102px;width:777px;height:516px;filter:drop-shadow(0 10px 10px rgba(0,0,0,.25))">
         <img src="assets/logo.png" alt="" style="object-fit:contain"></div>
-      <div class="startHint" id="startHint">터치해서 시작하기 ▶</div>
+      <img class="startHint" id="startHint" src="assets/btn_start.png" alt="터치해서 시작하기">
     </section>
 
     <!-- ===================== GAME ===================== -->
