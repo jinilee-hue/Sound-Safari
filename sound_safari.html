@@ -618,12 +618,15 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
       console.log('[azure] reason=', res.reason, '| text=', res.text, '| json=', raw);
       try{
         if(res.reason===SDK.ResultReason.RecognizedSpeech && raw){
-          const j=JSON.parse(raw), nb=(j.NBest&&j.NBest[0])||{}, phs=[];
-          const overall=Math.round((nb.PronunciationAssessment&&nb.PronunciationAssessment.AccuracyScore)||0);
-          (nb.Words||[]).forEach(w=>(w.Phonemes||[]).forEach(p=>{
+          const j=JSON.parse(raw), nb=(j.NBest&&j.NBest[0])||{}, words=nb.Words||[], phs=[];
+          // 여러 번 읽어도 첫 번째(정답) 단어 하나만 평가
+          const w=words.find(x=>(x.Word||'').toLowerCase()===word.toLowerCase()) || words[0] || {};
+          (w.Phonemes||[]).forEach(p=>{
             phs.push({ph:p.Phoneme, score:Math.round((p.PronunciationAssessment&&p.PronunciationAssessment.AccuracyScore)||0)});
-          }));
-          console.log('[azure] overall=', overall, 'phonemes=', phs);
+          });
+          const overall=Math.round((w.PronunciationAssessment&&w.PronunciationAssessment.AccuracyScore)
+                                 ||(nb.PronunciationAssessment&&nb.PronunciationAssessment.AccuracyScore)||0);
+          console.log('[azure] 평가단어=', w.Word, 'overall=', overall, 'phonemes=', phs);
           if(phs.length){ openEvalAzure(word, overall, phs); ok=true; } // 음소 데이터 있을 때만
         } else if(res.reason===SDK.ResultReason.Canceled){
           console.error('[azure] Canceled:', SDK.CancellationDetails.fromResult(res).errorDetails);
