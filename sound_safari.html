@@ -22,12 +22,12 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
   html,body{height:100%;overflow:hidden;background:#0d1b10;font-family:'Fredoka',sans-serif}
   /* 배경: game_bg.mp4 영상 (없으면 bg.png fallback) */
-  #app{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+  #app{position:fixed;inset:0;overflow:hidden;
     background:#0d1b10 url("assets/bg.png") center center / cover no-repeat}
   #bgVideo{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none}
 
-  /* 1280x720 stage, scaled to fit — Figma 좌표 그대로 유지 (배경은 영상, stage는 투명) */
-  #stage{position:relative;width:1280px;height:720px;transform-origin:center center;overflow:hidden;z-index:1}
+  /* 1280x720 stage, 화면 정중앙에 배치 후 scale (좌우 여백 대칭) */
+  #stage{position:absolute;left:50%;top:50%;width:1280px;height:720px;transform-origin:center center;overflow:hidden;z-index:1}
 
   .screen{position:absolute;inset:0;display:none}
   .screen.on{display:block}
@@ -231,7 +231,7 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
         <img src="assets/board.png" alt=""></div>
 
       <!-- lion mascot (상태별 이미지 교체 + 인터랙션) -->
-      <div class="a" id="lion" style="left:0px;top:310px;width:420px;height:468px;z-index:5">
+      <div class="a" id="lion" style="left:0px;bottom:0;width:410px;height:430px;z-index:5">
         <img id="lionImg" src="assets/lion1.png" alt="사자" style="object-fit:contain;object-position:center bottom"></div>
 
       <!-- instruction -->
@@ -310,7 +310,7 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
   function fit(){
     // 가로/세로 중 맞는 쪽으로 맞춰 전체가 항상 보이게(반응형, 잘림 방지). 여백은 배경이 채움
     const s=Math.min(app.clientWidth/1280, app.clientHeight/720);
-    stage.style.transform='scale('+s+')';
+    stage.style.transform='translate(-50%,-50%) scale('+s+')'; // 정중앙 + 스케일
   }
   window.addEventListener('resize',fit); fit();
 
