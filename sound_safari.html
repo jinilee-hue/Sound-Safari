@@ -309,9 +309,10 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
   const bgVideo=document.getElementById('bgVideo');
   let SX=1, SY=1;
   function fit(){
-    // 가로/세로를 각각 화면에 맞춰 늘려 100% 채움(여백 없음, UI 안 잘림, 약간의 비율 늘어남 감수)
-    SX=app.clientWidth/1280; SY=app.clientHeight/720;
-    stage.style.transform='translate(-50%,-50%) scale('+SX+','+SY+')';
+    // 비율 유지(contain): 찌그러짐 없이 전체가 보이게. 남는 여백은 배경이 채움
+    const s=Math.min(app.clientWidth/1280, app.clientHeight/720);
+    SX=SY=s;
+    stage.style.transform='translate(-50%,-50%) scale('+s+')';
   }
   window.addEventListener('resize',fit); fit();
 
