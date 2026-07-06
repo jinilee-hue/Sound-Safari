@@ -26,8 +26,8 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
     background:#0d1b10 url("assets/bg.png") center center / cover no-repeat}
   #bgVideo{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none}
 
-  /* 1280x720 stage, 화면 정중앙에 배치 후 scale (좌우 여백 대칭) */
-  #stage{position:absolute;left:50%;top:50%;width:1280px;height:720px;transform-origin:center center;overflow:hidden;z-index:1}
+  /* 1280x720 stage, 화면 정중앙에 배치 후 scale. overflow:visible → 사자가 하단 배경 위로 자연스럽게 이어짐 */
+  #stage{position:absolute;left:50%;top:50%;width:1280px;height:720px;transform-origin:center center;overflow:visible;z-index:1}
 
   .screen{position:absolute;inset:0;display:none}
   .screen.on{display:block}
@@ -231,7 +231,7 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
         <img src="assets/board.png" alt=""></div>
 
       <!-- lion mascot (상태별 이미지 교체 + 인터랙션) -->
-      <div class="a" id="lion" style="left:0px;bottom:0;width:500px;height:560px;z-index:5">
+      <div class="a" id="lion" style="left:0px;bottom:-60px;width:500px;height:560px;z-index:5">
         <img id="lionImg" src="assets/lion1.png" alt="사자" style="object-fit:contain;object-position:center bottom"></div>
 
       <!-- instruction -->
