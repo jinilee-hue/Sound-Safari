@@ -231,7 +231,7 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
         <img src="assets/board.png" alt=""></div>
 
       <!-- lion mascot (상태별 이미지 교체 + 인터랙션) -->
-      <div class="a" id="lion" style="left:0px;bottom:-60px;width:500px;height:560px;z-index:5">
+      <div class="a" id="lion" style="left:-50px;bottom:-90px;width:570px;height:630px;z-index:5">
         <img id="lionImg" src="assets/lion1.png" alt="사자" style="object-fit:contain;object-position:center bottom"></div>
 
       <!-- instruction -->
@@ -707,9 +707,18 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
 
   // ---- 사자 마스코트: 상태별 이미지 + 애니메이션 ----
   const lion=document.getElementById('lion'), lionImg=document.getElementById('lionImg');
-  const LION={ idle:'assets/lion1.png', listen:'assets/lion3.png', celebrate:'assets/lion2.png', praise:'assets/lion4.png' };
+  // 상태(캐릭터)별 이미지 + 위치/크기 개별 지정 (left, bottom, w, h) — 포즈마다 따로 조정 가능
+  const LION={
+    idle:      { src:'assets/lion1.png', left:-60, bottom:-90,  w:570, h:630 }, // 기본(가리킴)
+    listen:    { src:'assets/lion3.png', left:-180, bottom:-90, w:570, h:630 }, // 듣기(기본과 동일 크기·왼쪽으로만)
+    celebrate: { src:'assets/lion2.png', left:-40, bottom:-70,  w:560, h:640 }, // 환호(점프)
+    praise:    { src:'assets/lion4.png', left:-30, bottom:-90,  w:520, h:660 }  // 칭찬(엄지척)
+  };
   function setLion(state){
-    lionImg.src=LION[state]||LION.idle;
+    const c=LION[state]||LION.idle;
+    lionImg.src=c.src;
+    lion.style.left=c.left+'px'; lion.style.bottom=c.bottom+'px'; lion.style.top='auto';
+    lion.style.width=c.w+'px'; lion.style.height=c.h+'px';
     const cls = state==='celebrate' ? 'jump' : 'pop';
     lion.classList.remove('pop','jump'); void lion.offsetWidth; lion.classList.add(cls);
   }
