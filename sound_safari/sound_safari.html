@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Sound Safari</title>
+<!--
+================ ASSET MANIFEST (Figma: Sound Safari / 9d6Xuu0OyTVM1ZvK8Oavyu) ================
+Figma Dev Mode에서 export한 실제 아트를 ./assets/ 에 저장해 사용합니다. (로컬/오프라인 실행 가능)
+bg.png, logo.png, board.png, word_board.png, lion1~4.png(마스코트 상태별), life_board.png, life_heart.png,
+point_board.png, btn_home.png, btn_setting.png, btn_replay.png, btn_mic.png, btn_mic_on.png,
+btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
+글자 카드(컴포넌트): alphabet_<a-z>.png + alphabet_blank.png  (슬롯/트레이에 사이즈만 축소해 공용 사용)
+  ※ 현재 i, n, x 카드는 컴포넌트에 없음 → alphabet_i/n/x.png 추가 필요
+단어 그림(컴포넌트): img_<word>.png  (cat,bat,fan,van,rat,log,bus,pig,fox,sun,cup,bed)
+==============================================================================================
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Jua&family=Comic+Relief:wght@700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;overflow:hidden;background:#0d1b10;font-family:'Fredoka',sans-serif}
+  /* 배경: game_bg.mp4 영상 (없으면 bg.png fallback) */
+  #app{position:fixed;inset:0;overflow:hidden;
+    background:#0d1b10 url("assets/bg.png") center center / cover no-repeat}
+  #bgVideo{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none}
+
+  /* 1280x720 stage, 화면 정중앙에 배치 후 scale. overflow:visible → 사자가 하단 배경 위로 자연스럽게 이어짐 */
+  #stage{position:absolute;left:50%;top:50%;width:1280px;height:720px;transform-origin:center center;overflow:visible;z-index:1}
+
+  .screen{position:absolute;inset:0;display:none}
+  .screen.on{display:block}
+  .screen:not(.on){pointer-events:none} /* 숨은 화면이 클릭 가로채지 않도록 */
+
+  /* asset node: exact Figma coords, image fills the box */
+  .a{position:absolute}
+  .a > img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none}
+
+  /* score + instruction (exact Figma type) */
+  #score{position:absolute;right:63px;top:80px;color:#ffe16a;font-size:36px;font-weight:500;
+    font-family:'Fredoka';text-align:right;white-space:nowrap;text-shadow:0 2px 0 rgba(0,0,0,.2);z-index:6}
+  #instruction{position:absolute;left:360px;top:112px;width:560px;color:#522d0d;font-size:34px;
+    font-family:'Jua',sans-serif;font-weight:400;letter-spacing:-1px;white-space:nowrap;text-align:center;z-index:6;
+    text-shadow:0 0 8px #fff,0 0 8px #fff,0 0 4px #fff,1px 1px 0 rgba(255,255,255,.9),-1px -1px 0 rgba(255,255,255,.9)}
+
+  /* lion mascot: 대기 시 살랑, 상태 전환 시 팝/점프 */
+  #lion{cursor:pointer;transform-origin:center bottom;animation:lionBob 3s ease-in-out infinite}
+  #lion.pop{animation:lionPop .5s}
+  #lion.jump{animation:lionJump .65s}
+  @keyframes lionBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+  @keyframes lionPop{0%{transform:scale(.9)}60%{transform:scale(1.06)}100%{transform:scale(1)}}
+  @keyframes lionJump{0%{transform:translateY(0)}30%{transform:translateY(-34px) scale(1.04)}
+    55%{transform:translateY(0)}72%{transform:translateY(-12px)}100%{transform:translateY(0)}}
+
+  /* interactive buttons */
+  .btn{cursor:pointer;transition:transform .1s}
+  .btn:active{transform:scale(.92)}
+  /* active(녹음) 상태 — 이미지는 btn_mic_on.png(빨강)로 교체, 여기선 맥박+글로우만 */
+  .btn.recording{animation:recPulse .7s ease-in-out infinite}
+  .btn.recording::after{content:"";position:absolute;inset:-8px;border-radius:50%;
+    box-shadow:0 0 22px 6px rgba(255,45,45,.55);pointer-events:none}
+  @keyframes recPulse{50%{transform:scale(1.07)}}
+  /* 단어 완성 전 마이크 잠김 */
+  .btn.locked{opacity:.45;filter:grayscale(.5)}
+  /* 단어 완성 후 마이크 "발음해봐!" 초대 */
+  .btn.invite{animation:invite 1s ease-in-out infinite}
+  .btn.invite::after{content:"";position:absolute;inset:-8px;border-radius:50%;
+    box-shadow:0 0 18px 6px rgba(90,175,70,.65);pointer-events:none}
+  @keyframes invite{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+
+  /* draggable option tiles */
+  .opt{cursor:grab;touch-action:none;z-index:8;transition:transform .18s cubic-bezier(.34,1.56,.64,1),top .18s,left .18s}
+  .opt.dragging{cursor:grabbing;z-index:20;transition:none;filter:drop-shadow(0 12px 10px rgba(0,0,0,.35))}
+  .opt.used{opacity:0;pointer-events:none}
+
+  .slot.hot > img{filter:drop-shadow(0 0 12px #ffe16a) brightness(1.08)}
+  .slot > img,.opt > img{object-fit:contain} /* 카드 원본 비율 유지하며 축소 */
+  .slot.filled > img{animation:tilePop .35s}
+  @keyframes tilePop{0%{transform:scale(.4)}70%{transform:scale(1.15)}100%{transform:scale(1)}}
+  /* 진행 하트: 안 푼 문제는 숨김, 푼 문제만 빨간 하트로 채워짐 */
+  .heart{opacity:0;transition:opacity .2s}
+  .heart.on{opacity:1;animation:heartPop .4s}
+  @keyframes heartPop{0%{transform:scale(.3)}70%{transform:scale(1.2)}100%{transform:scale(1)}}
+  /* intro start hint (btn_start.png 이미지) */
+  .startHint{position:absolute;left:50%;bottom:30px;transform:translateX(-50%);z-index:6;
+    width:300px;max-width:52%;height:auto;cursor:pointer;animation:pulse 1.4s infinite;
+    filter:drop-shadow(0 6px 8px rgba(0,0,0,.3))}
+  @keyframes pulse{50%{transform:translateX(-50%) scale(1.06)}}
+
+  /* 결과 이미지 (GOOD! / Try Again!) 팝업 */
+  #result{position:absolute;left:50%;top:40%;z-index:41;width:560px;max-width:74%;
+    transform:translate(-50%,-50%) scale(.3);opacity:0;pointer-events:none;
+    filter:drop-shadow(0 10px 18px rgba(0,0,0,.35))}
+  #result.show{animation:resultPop 1.4s cubic-bezier(.2,1.4,.4,1)}
+  @keyframes resultPop{
+    0%{opacity:0;transform:translate(-50%,-50%) scale(.3) rotate(-6deg)}
+    15%{opacity:1;transform:translate(-50%,-50%) scale(1.12) rotate(2deg)}
+    32%{transform:translate(-50%,-50%) scale(.97) rotate(-1deg)}
+    48%{transform:translate(-50%,-50%) scale(1.03)}
+    62%{transform:translate(-50%,-50%) scale(1) rotate(0)}
+    82%{opacity:1;transform:translate(-50%,-50%) scale(1)}
+    100%{opacity:0;transform:translate(-50%,-50%) scale(.96)}}
+
+  /* 안내 문구 이미지 토스트 (info_txt1~6) */
+  #infoToast{position:absolute;left:50%;top:20%;z-index:42;width:auto;max-width:44%;
+    transform:translate(-50%,-50%) scale(.5);opacity:0;pointer-events:none;
+    filter:drop-shadow(0 6px 10px rgba(0,0,0,.3))}
+  #infoToast.show{animation:infoPop 1.7s cubic-bezier(.2,1.4,.4,1)}
+  @keyframes infoPop{
+    0%{opacity:0;transform:translate(-50%,-50%) scale(.5)}
+    12%{opacity:1;transform:translate(-50%,-50%) scale(1.06)}
+    25%{transform:translate(-50%,-50%) scale(1)}
+    80%{opacity:1;transform:translate(-50%,-50%) scale(1)}
+    100%{opacity:0;transform:translate(-50%,-50%) scale(.96)}}
+
+  /* toast — 그래픽 뱃지 스타일 */
+  #toast{position:absolute;left:50%;top:44%;z-index:40;opacity:0;pointer-events:none;
+    transform:translate(-50%,-50%) scale(.3);
+    font-family:'Jua',sans-serif;font-size:56px;color:#fff;white-space:nowrap;
+    padding:16px 56px;border-radius:60px;border:5px solid #fff;
+    background:linear-gradient(180deg,#ffd23f,#ff9f1c);
+    box-shadow:0 10px 0 rgba(0,0,0,.18),0 16px 34px rgba(0,0,0,.4),inset 0 4px 0 rgba(255,255,255,.55);
+    text-shadow:0 3px 0 rgba(0,0,0,.28);-webkit-text-stroke:1px rgba(0,0,0,.12)}
+  #toast.good{background:linear-gradient(180deg,#9be86b,#34ac4b)}
+  #toast.bad{background:linear-gradient(180deg,#ff8a5c,#ef4436)}
+  /* 양쪽 반짝이 별 */
+  #toast::before,#toast::after{content:"";position:absolute;top:-22px;width:40px;height:40px;background:#fff14d;
+    clip-path:polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);
+    filter:drop-shadow(0 2px 2px rgba(0,0,0,.25));opacity:0}
+  #toast::before{left:-14px;transform:rotate(-18deg)}
+  #toast::after{right:-14px;transform:rotate(18deg)}
+  #toast.show{animation:toastPop 1.2s cubic-bezier(.2,1.4,.4,1)}
+  #toast.show::before{animation:twinkle 1.2s ease-out}
+  #toast.show::after{animation:twinkle 1.2s ease-out .08s}
+  @keyframes toastPop{
+    0%{opacity:0;transform:translate(-50%,-50%) scale(.3) rotate(-8deg)}
+    15%{opacity:1;transform:translate(-50%,-50%) scale(1.18) rotate(3deg)}
+    30%{transform:translate(-50%,-50%) scale(.96) rotate(-2deg)}
+    45%{transform:translate(-50%,-50%) scale(1.05) rotate(1deg)}
+    60%{transform:translate(-50%,-50%) scale(1) rotate(0)}
+    82%{opacity:1;transform:translate(-50%,-50%) scale(1)}
+    100%{opacity:0;transform:translate(-50%,-50%) scale(.92)}}
+  @keyframes twinkle{0%{opacity:0;transform:scale(.2) rotate(0)}
+    30%{opacity:1;transform:scale(1.2) rotate(90deg)}70%{opacity:1;transform:scale(1) rotate(160deg)}100%{opacity:0}}
+  /* 색종이(컨페티) */
+  .confetti{position:absolute;left:50%;top:44%;width:12px;height:14px;z-index:39;border-radius:2px;
+    pointer-events:none;animation:conf .95s ease-out forwards}
+  @keyframes conf{
+    0%{opacity:1;transform:translate(-50%,-50%) rotate(0)}
+    100%{opacity:0;transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) rotate(var(--rot))}}
+  #next{display:none} /* 투명 화살표 이미지 + CSS 텍스트, JS로 표시 토글 */
+  .nextTxt{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    padding-right:22px; /* 화살촉(오른쪽) 피해 살짝 왼쪽 */
+    font-family:'Jua',sans-serif;font-size:34px;color:#ffe07a;
+    -webkit-text-stroke:4px #4a2a12;paint-order:stroke fill;
+    text-shadow:0 2px 0 rgba(0,0,0,.25);pointer-events:none}
+
+  /* ===== 설정 팝업 ===== */
+  #setModal{position:absolute;inset:0;z-index:60;display:none}
+  /* dim: stage 밖(레터박스)까지 덮도록 크게 확장 */
+  .mdim{position:absolute;inset:-1500px;background:rgba(14,30,14,.55);z-index:0}
+  #setModal.on{display:block}
+  #setModal .pop{position:absolute;inset:0;animation:evalIn .4s cubic-bezier(.2,1.4,.4,1)}
+  #setModal img{position:absolute} /* 클릭 차단은 .evalBoxImg(박스)에만 적용됨 */
+  .setTitle{position:absolute;left:353px;top:120px;width:573px;text-align:center;z-index:1;
+    font-family:'Jua',sans-serif;font-size:40px;color:#fff;text-shadow:0 3px 0 rgba(0,0,0,.35)}
+  .setRow{position:absolute;left:443px;width:393px;display:flex;align-items:center;justify-content:space-between;z-index:1}
+  .setLabel{font-family:'Jua',sans-serif;font-size:32px;color:#fff;text-shadow:0 2px 0 rgba(0,0,0,.35)}
+  .setToggle{cursor:pointer;pointer-events:auto;font-family:'Jua',sans-serif;font-size:24px;color:#fff;border:0;
+    border-radius:30px;padding:9px 30px;background:#34ac4b;box-shadow:0 4px 0 rgba(0,0,0,.28)}
+  .setToggle.off{background:#a99}
+  .setToggle:active{transform:translateY(3px)}
+  #setClose{left:554px;top:580px;width:170px;height:108px;cursor:pointer;pointer-events:auto}
+
+  /* ===== 발음 평가 팝업 (Figma: Sound Safari_발음평가, 스테이지 좌표 기준) ===== */
+  #evalModal{position:absolute;inset:0;z-index:60;display:none}
+  #evalModal.on{display:block}
+  #evalModal .pop{position:absolute;inset:0;animation:evalIn .4s cubic-bezier(.2,1.4,.4,1)}
+  @keyframes evalIn{0%{opacity:0;transform:scale(.85)}100%{opacity:1;transform:none}}
+  #evalModal img{position:absolute}
+  .evalBoxImg,.evalStars img{pointer-events:none} /* 장식 이미지는 클릭 통과, 버튼은 클릭 가능 */
+  .evalBoxImg{left:353px;top:60px;width:573px;height:510px}
+  .evalTitle{position:absolute;left:353px;top:120px;width:573px;text-align:center;z-index:1;
+    font-family:'Jua',sans-serif;font-size:36px;color:#fff;text-shadow:0 3px 0 rgba(0,0,0,.35)}
+  .evalStars{position:absolute;left:353px;top:190px;width:573px;display:flex;justify-content:center;gap:11px;z-index:1}
+  #evalStars img{position:static;width:63px;height:60px}
+  #evalStars img.on{animation:starPop .5s}
+  @keyframes starPop{0%{transform:scale(0)}70%{transform:scale(1.3)}100%{transform:scale(1)}}
+  .evalWord{position:absolute;left:353px;top:262px;width:573px;text-align:center;z-index:1;line-height:1;
+    font-family:'Fredoka',sans-serif;font-weight:700;font-size:96px;color:#ffd23f;text-transform:uppercase;
+    -webkit-text-stroke:3px #6a3d0e;paint-order:stroke fill;text-shadow:0 4px 0 rgba(0,0,0,.2)}
+  .evalMarks{position:absolute;left:353px;top:366px;width:573px;display:flex;justify-content:center;gap:20px;z-index:1}
+  .evalMarks span{width:52px;text-align:center;border-bottom:4px solid #d9c9a0;padding-bottom:4px;
+    font-family:'Fredoka',sans-serif;font-weight:700;font-size:26px}
+  .evalMarks span.ok{color:#4fc95c}
+  .evalMarks span.mid{color:#e0952a}
+  .evalMarks span.no{color:#e8663b}
+  .evalMarks small{display:block;font-size:13px;color:#cbb994;font-weight:400;margin-top:2px}
+  .evalHeard{position:absolute;left:353px;top:434px;width:573px;text-align:center;z-index:1;
+    font-family:'Jua',sans-serif;font-size:22px;color:#e9dcc0}
+  #evalRetry{left:437px;top:582px;width:231px;height:102px;cursor:pointer;pointer-events:auto}
+  #evalClose{left:672px;top:580px;width:170px;height:108px;cursor:pointer;pointer-events:auto}
+  #evalRetry:active,#evalClose:active{transform:translateY(3px)}
+</style>
+<!-- Azure Speech SDK (발음평가). 토큰 서버 미설정 시엔 로드돼도 사용 안 함 -->
+<script src="https://cdn.jsdelivr.net/npm/microsoft-cognitiveservices-speech-sdk@1.40.0/distrib/browser/microsoft.cognitiveservices.speech.sdk.bundle-min.js"></script>
+</head>
+<body>
+<div id="app">
+  <video id="bgVideo" autoplay muted loop playsinline preload="auto" poster="assets/bg.png">
+    <source src="assets/game_bg.mp4" type="video/mp4">
+  </video>
+  <div id="stage">
+
+    <!-- ===================== INTRO ===================== -->
+    <section class="screen on" id="introScreen">
+      <div class="a" style="left:251px;top:102px;width:777px;height:516px;filter:drop-shadow(0 10px 10px rgba(0,0,0,.25))">
+        <img src="assets/logo.png" alt="" style="object-fit:contain"></div>
+      <img class="startHint" id="startHint" src="assets/btn_start.png" alt="터치해서 시작하기">
+    </section>
+
+    <!-- ===================== GAME ===================== -->
+    <section class="screen" id="gameScreen">
+      <!-- top-left buttons -->
+      <div class="a btn" id="btnHome" style="left:20px;top:20px;width:80.879px;height:80px;z-index:7">
+        <img src="assets/btn_home.png" alt="Home"></div>
+      <div class="a btn" id="btnSetting" style="left:111px;top:20px;width:80.879px;height:80px;z-index:7">
+        <img src="assets/btn_setting.png" alt="Setting"></div>
+
+      <!-- life board + 진행 하트 (푼 문제만 채워짐) -->
+      <div class="a" style="left:540px;top:20px;width:200px;height:80px">
+        <img src="assets/life_board.png" alt=""></div>
+      <div class="a heart" data-i="0" style="left:560px;top:37px;width:49px;height:47px">
+        <img src="assets/life_heart.png" alt=""></div>
+      <div class="a heart" data-i="1" style="left:615px;top:37px;width:49px;height:47px">
+        <img src="assets/life_heart.png" alt=""></div>
+      <div class="a heart" data-i="2" style="left:670px;top:37px;width:49px;height:47px">
+        <img src="assets/life_heart.png" alt=""></div>
+
+      <!-- point board + score -->
+      <div class="a" style="left:1042px;top:25px;width:218.4px;height:120px">
+        <img src="assets/point_board.png" alt=""></div>
+      <div id="score">180</div>
+
+      <!-- main board -->
+      <div class="a" style="left:360px;top:210px;width:560px;height:295px">
+        <img src="assets/board.png" alt=""></div>
+
+      <!-- lion mascot (상태별 이미지 교체 + 인터랙션) -->
+      <div class="a" id="lion" style="left:-50px;bottom:-90px;width:570px;height:630px;z-index:5">
+        <img id="lionImg" src="assets/lion1.png" alt="사자" style="object-fit:contain;object-position:center bottom"></div>
+
+      <!-- instruction -->
+      <div id="instruction">단어를 완성하고 발음해봐!</div>
+
+      <!-- picture (cat/bat) + shadow -->
+      <div class="a" id="picShadow" style="left:594px;top:298px;width:90px;height:16px;z-index:3">
+        <img src="assets/shadow.svg" alt=""></div>
+      <div class="a" id="pic" style="left:554px;top:159px;width:145px;height:160px;z-index:4">
+        <img id="picImg" src="assets/img_cat.png" alt="" style="object-fit:contain" onerror="this.style.display='none'"></div>
+
+      <!-- word slots: 3칸 모두 빈칸으로 시작 -->
+      <div class="a slot" data-i="0" style="left:387px;top:318px;width:157px;height:156px;z-index:6">
+        <img src="assets/alphabet_blank.png" alt="" onerror="this.style.display='none'"></div>
+      <div class="a slot" data-i="1" style="left:562px;top:318px;width:157px;height:156px;z-index:6">
+        <img src="assets/alphabet_blank.png" alt="" onerror="this.style.display='none'"></div>
+      <div class="a slot" data-i="2" style="left:737px;top:318px;width:157px;height:156px;z-index:6">
+        <img src="assets/alphabet_blank.png" alt="" onerror="this.style.display='none'"></div>
+
+      <!-- right buttons -->
+      <div class="a btn" id="btnReplay" style="left:835px;top:239px;width:59px;height:60px;z-index:7">
+        <img src="assets/btn_replay.png" alt="Replay"></div>
+      <div class="a btn" id="btnMic" style="left:939px;top:230px;width:119px;height:120px;z-index:7">
+        <img id="micImg" src="assets/btn_mic.png" alt="Mic"></div>
+      <div class="a btn" id="btnSpeak" style="left:940px;top:360px;width:118px;height:120px;z-index:7">
+        <img id="speakImg" src="assets/btn_speak_off.png" alt="Speak"></div>
+
+      <!-- word tray -->
+      <div class="a" style="left:303px;top:580px;width:675px;height:120px;z-index:5">
+        <img src="assets/word_board.png" alt=""></div>
+
+      <!-- draggable option tiles (레벨마다 글자 배정) -->
+      <div class="a opt" style="left:338px;top:592px;width:90px;height:90px"><img alt="" onerror="this.style.display='none'"></div>
+      <div class="a opt" style="left:464px;top:592px;width:90px;height:90px"><img alt="" onerror="this.style.display='none'"></div>
+      <div class="a opt" style="left:590px;top:592px;width:90px;height:90px"><img alt="" onerror="this.style.display='none'"></div>
+      <div class="a opt" style="left:715px;top:593px;width:90px;height:90px"><img alt="" onerror="this.style.display='none'"></div>
+      <div class="a opt" style="left:849px;top:593px;width:90px;height:90px"><img alt="" onerror="this.style.display='none'"></div>
+
+      <img id="result" alt="">
+      <img id="infoToast" alt="">
+      <div id="toast"></div>
+      <div class="a btn" id="next" style="left:1042px;top:590px;width:165px;height:94px;z-index:30">
+        <img src="assets/btn_next.png" alt="Next" style="object-fit:contain">
+        <span class="nextTxt">Next</span></div>
+
+      <!-- 설정 팝업 -->
+      <div id="setModal">
+        <div class="mdim"></div>
+        <div class="pop">
+          <img class="evalBoxImg" src="assets/pop_box.png" alt="">
+          <div class="setTitle">설정</div>
+          <div class="setRow" style="top:245px"><span class="setLabel">배경음악</span><button class="setToggle" id="tgMusic">ON</button></div>
+          <div class="setRow" style="top:330px"><span class="setLabel">말소리</span><button class="setToggle" id="tgSound">ON</button></div>
+          <img id="setClose" src="assets/btn_close.png" alt="닫기">
+        </div>
+      </div>
+
+      <!-- 발음 평가 팝업 (Figma: Sound Safari_발음평가) -->
+      <div id="evalModal">
+        <div class="mdim"></div>
+        <div class="pop">
+          <img class="evalBoxImg" src="assets/pop_box.png" alt="">
+          <div class="evalTitle">발음평가</div>
+          <div class="evalStars" id="evalStars">
+            <img src="assets/ic_star_blank.png" alt="">
+            <img src="assets/ic_star_blank.png" alt="">
+            <img src="assets/ic_star_blank.png" alt="">
+          </div>
+          <div class="evalWord" id="evalWord">bus</div>
+          <div class="evalMarks" id="evalMarks"></div>
+          <div class="evalHeard" id="evalHeard">틀린발음 : —</div>
+          <img id="evalRetry" src="assets/btn_replay2.png" alt="다시 하기">
+          <img id="evalClose" src="assets/btn_close.png" alt="닫기">
+        </div>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  // ===== Azure 발음평가 설정 =====
+  // 배포한 토큰 서버 URL을 넣으면 음소별 정확 평가(Azure) 사용. 비우면 간이(Web Speech) 평가.
+  const AZURE_TOKEN_URL = 'https://sound-safari-token.jini-lee.workers.dev/';
+
+  const stage=document.getElementById('stage'), app=document.getElementById('app');
+  const bgVideo=document.getElementById('bgVideo');
+  let SX=1, SY=1;
+  function fit(){
+    // 비율 유지(contain): 찌그러짐 없이 전체가 보이게. 남는 여백은 배경이 채움
+    const s=Math.min(app.clientWidth/1280, app.clientHeight/720);
+    SX=SY=s;
+    stage.style.transform='translate(-50%,-50%) scale('+s+')';
+  }
+  window.addEventListener('resize',fit); fit();
+
+  // ---- screen switch ----
+  const intro=document.getElementById('introScreen'), game=document.getElementById('gameScreen');
+  function start(){ if(!intro.classList.contains('on'))return; intro.classList.remove('on'); game.classList.add('on');
+    // 사용자 제스처(시작 터치)로 배경음악 음소거 해제
+    try{ bgVideo.muted=!musicOn; bgVideo.volume=.35; bgVideo.play(); }catch(e){}
+    newRound(); solved.clear(); li=0; loadLevel(); }
+  intro.addEventListener('click',start);
+
+  // ---- levels: 3칸 모두 빈칸, 순서대로 채우기 ----
+  // 전체 단어 풀 (파닉스 소리 중심). 그림: assets/img_<word>.png
+  const WORDS=[
+    {word:'cat', distractors:['s','b']},
+    {word:'bat', distractors:['f','p']},
+    {word:'fan', distractors:['p','b']}, // f ↔ p
+    {word:'van', distractors:['b','f']}, // v ↔ b
+    {word:'rat', distractors:['l','s']}, // r ↔ l
+    {word:'log', distractors:['r','b']}, // l ↔ r
+    {word:'bus', distractors:['v','p']}, // b ↔ v
+    {word:'pig', distractors:['f','b']}, // p ↔ f
+    {word:'fox', distractors:['p','s']}, // f ↔ p
+    {word:'sun', distractors:['f','l']}, // s
+    {word:'cup', distractors:['b','f']}, // 단모음 u ↔ a
+    {word:'bed', distractors:['v','p']}  // b ↔ v / 단모음 e
+  ].map(l=>({ ...l, pic:'assets/img_'+l.word+'.png', picBox:{l:540,t:150,w:200,h:165} }));
+
+  const ROUND=3;          // 한 판에 3문제
+  let levels=[];          // 이번 판에 뽑힌 3개 (랜덤)
+  function newRound(){ levels = shuffle(WORDS.slice()).slice(0, ROUND); }
+
+  // 글자 타일: 컴포넌트 카드 1개(assets/alphabet_<글자>.png)를 슬롯/트레이에 사이즈만 줄여 사용
+  const tilePath = l => 'assets/alphabet_'+l+'.png';
+  const shuffle=a=>{ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; };
+
+  let li=0, score=180;
+  let musicOn=true, soundOn=true;  // 설정: 배경음악 / 말소리(TTS)
+  const solved=new Set(); // 푼 문제(레벨) 인덱스 → 하트로 표시
+  let phase='spell', bonusClaimed=false; // spell → speak(발음 보너스 단계)
+  const scoreEl=document.getElementById('score');
+  const heartEls=[...document.querySelectorAll('.heart')];
+  const pic=document.getElementById('pic'), picImg=document.getElementById('picImg');
+  const slotEls=[...document.querySelectorAll('.slot')];
+  const optEls=[...document.querySelectorAll('.opt')];
+  let filled=0;
+  let idleHint=null, interacted=false; // 2초 무반응 시 단어 안내
+  const toast=document.getElementById('toast'), nextBtn=document.getElementById('next');
+  const infoToast=document.getElementById('infoToast');
+  function showInfo(n){ // 안내 문구 이미지 (1~6)
+    infoToast.src='assets/info_txt'+n+'.png';
+    infoToast.classList.remove('show'); void infoToast.offsetWidth; infoToast.classList.add('show');
+  }
+  const resultImg=document.getElementById('result');
+  function showResult(type){
+    resultImg.src = type==='good' ? 'assets/good.png' : 'assets/try_again.png';
+    resultImg.classList.remove('show'); void resultImg.offsetWidth; resultImg.classList.add('show');
+    confetti(); // 중앙 파티클
+  }
+
+  function renderHearts(){ heartEls.forEach((h,i)=>h.classList.toggle('on', solved.has(i))); } // 푼 문제만 하트
+  function say(text){ if(!soundOn)return; try{ const u=new SpeechSynthesisUtterance(text); u.lang='en-US'; u.rate=.8; speechSynthesis.cancel(); speechSynthesis.speak(u);}catch(e){} }
+  // 마지막 글자 발음 → 끝나면 전체 단어 읽기
+  function sayLetterThenWord(word){
+    if(!soundOn)return;
+    const letter=word.slice(-1);
+    try{
+      const u=new SpeechSynthesisUtterance(letter); u.lang='en-US'; u.rate=.8;
+      u.onend=()=>{ setTimeout(()=>say(word), 250); };
+      speechSynthesis.cancel(); speechSynthesis.speak(u);
+    }catch(e){ say(word); }
+  }
+  function showToast(t,type){
+    toast.textContent=t; toast.className=''; if(type) toast.classList.add(type);
+    void toast.offsetWidth; toast.classList.add('show');
+    if(type==='good') confetti();
+  }
+  function confetti(cx, cy, n){
+    const colors=['#ffd23f','#ff6b6b','#4fd1c5','#8ee06b','#7aa2ff','#ff9f1c','#ffffff'];
+    const count=n||22;
+    for(let i=0;i<count;i++){
+      const p=document.createElement('div'); p.className='confetti';
+      if(cx!=null){ p.style.left=cx+'px'; p.style.top=cy+'px'; } // 지정 위치(스테이지 px)
+      const ang=Math.PI*2*Math.random(), dist=120+Math.random()*170;
+      p.style.setProperty('--dx',(Math.cos(ang)*dist).toFixed(0)+'px');
+      p.style.setProperty('--dy',(Math.sin(ang)*dist-40).toFixed(0)+'px');
+      p.style.setProperty('--rot',(Math.random()*720-360).toFixed(0)+'deg');
+      p.style.background=colors[i%colors.length];
+      p.style.animationDelay=(Math.random()*.06).toFixed(2)+'s';
+      game.appendChild(p);
+      setTimeout(()=>p.remove(),1050);
+    }
+  }
+
+  function loadLevel(){
+    const lv=levels[li];
+    const letters=lv.word.split('');   // 정답 글자(순서)
+    // picture (position/size per level) — 그림 없으면 단어 텍스트로 표시
+    pic.style.left=lv.picBox.l+'px'; pic.style.top=lv.picBox.t+'px';
+    pic.style.width=lv.picBox.w+'px'; pic.style.height=lv.picBox.h+'px';
+    picImg.style.display=''; picImg.src=lv.pic;
+    // 슬롯 3칸 모두 빈칸으로 + 칸별 기대 글자 지정
+    slotEls.forEach((s,i)=>{ s.classList.remove('hot','filled'); s.dataset.exp=letters[i]||'';
+      const im=s.querySelector('img'); im.style.display=''; im.src='assets/alphabet_blank.png'; });
+    // 트레이: 정답 글자 3개 + distractor 2개 = 5개, 셔플
+    const pool=shuffle(letters.concat(shuffle(lv.distractors.slice())).slice(0,5));
+    optEls.forEach((o,i)=>{ const l=pool[i]; o.dataset.l=l;
+      const im=o.querySelector('img'); im.style.display=''; im.src=tilePath(l);
+      o.classList.remove('used'); o.style.left=o.dataset.ox; o.style.top=o.dataset.oy; });
+    filled=0;
+    nextBtn.style.display='none';
+    renderHearts();               // 진행 표시 반영
+    // 단어 완성 전: 발음(마이크) 잠금
+    phase='spell'; bonusClaimed=false;
+    btnMic.classList.add('locked'); btnMic.classList.remove('invite');
+    setLion('idle');                // 기본: 보드를 가리키는 사자
+    // 바로 말하지 않고, 2초간 반응(조작)이 없으면 단어를 읽어줌
+    interacted=false; clearTimeout(idleHint);
+    idleHint=setTimeout(()=>{ if(!interacted) say(lv.word); }, 2000);
+  }
+
+  // ---- drag (pointer) ----
+  let drag=null, offX=0, offY=0, startL=0, startT=0;
+
+  optEls.forEach(o=>{
+    o.dataset.ox=o.style.left; o.dataset.oy=o.style.top;
+    o.addEventListener('pointerdown',e=>{
+      if(o.classList.contains('used'))return;
+      interacted=true; clearTimeout(idleHint); // 사용자 반응 → 자동 안내 취소
+      e.preventDefault(); // 드래그 뒤 유령 클릭(홈 버튼 등 오작동) 방지
+      drag=o; o.classList.add('dragging'); o.setPointerCapture(e.pointerId);
+      startL=parseFloat(o.style.left); startT=parseFloat(o.style.top);
+      offX=e.clientX; offY=e.clientY;
+    });
+    o.addEventListener('pointermove',e=>{
+      if(drag!==o)return;
+      o.style.left=(startL+(e.clientX-offX)/SX)+'px';
+      o.style.top =(startT+(e.clientY-offY)/SY)+'px';
+      const hot=overSlotEl(o);
+      slotEls.forEach(sl=>sl.classList.toggle('hot', sl===hot && !sl.classList.contains('filled')));
+    });
+    o.addEventListener('pointerup',e=>{
+      if(drag!==o)return; drag=null; o.classList.remove('dragging');
+      slotEls.forEach(sl=>sl.classList.remove('hot'));
+      const s=overSlotEl(o);
+      if(s && !s.classList.contains('filled') && o.dataset.l===s.dataset.exp){ placeCorrect(o,s); }
+      else if(s && !s.classList.contains('filled')){ wrong(o); }
+      else { o.style.left=o.dataset.ox; o.style.top=o.dataset.oy; }
+    });
+  });
+
+  function centerOf(el){ const l=parseFloat(el.style.left), t=parseFloat(el.style.top);
+    return {x:l+el.offsetWidth/2, y:t+el.offsetHeight/2}; }
+  function overSlotEl(o){
+    const c=centerOf(o);
+    for(const s of slotEls){
+      const sl=parseFloat(s.style.left), st=parseFloat(s.style.top);
+      if(c.x>sl && c.x<sl+157 && c.y>st && c.y<st+156) return s;
+    }
+    return null;
+  }
+  function placeCorrect(o,s){
+    o.classList.add('used');
+    s.classList.add('filled');
+    const im=s.querySelector('img'); im.style.display=''; im.src=tilePath(o.dataset.l);
+    filled++;
+    if(filled===levels[li].word.length){ complete(); } // 마지막 글자→단어는 complete에서 처리
+    else { say(o.dataset.l); }                          // 중간 글자는 글자만 발음
+  }
+  function complete(){
+    score+=20; scoreEl.textContent=score;          // 단어 완성 기본 점수
+    solved.add(li); renderHearts();               // 진행 표시 갱신
+    // 발음 단계로 전환 → 마이크 활성화 + "발음해봐!" 초대
+    phase='speak';
+    btnMic.classList.remove('locked'); btnMic.classList.add('invite');
+    setLion('celebrate');           // 단어 완성 → 점프 환호
+    showResult('good');             // GOOD! 이미지 + 파티클
+    confetti(210, 330, 20);         // 사자 주변에서 추가 파티클
+    sayLetterThenWord(levels[li].word); // 마지막 글자 발음 후 전체 단어 읽기
+    setTimeout(()=>showInfo(2), 1100); // "마이크를 눌러 발음해봐!"
+    // Next는 숨김 유지 → 발음해야 나타남(openEval). 단, 음성인식 미지원 브라우저는 예외로 허용
+    if(!SR) nextBtn.style.display='block';
+  }
+  function wrong(o){
+    o.style.left=o.dataset.ox; o.style.top=o.dataset.oy;
+    showResult('bad');              // Try Again! 이미지 + 파티클
+  }
+
+  nextBtn.addEventListener('click',()=>{
+    li++;
+    if(li>=levels.length){ newRound(); solved.clear(); li=0; } // 새 라운드(랜덤 3개)
+    loadLevel();
+  });
+
+  // ---- buttons ----
+  const btnSpeak=document.getElementById('btnSpeak'); // 🔊 스피크: 단어 듣기(TTS)
+  const btnMic=document.getElementById('btnMic');     // 🎤 마이크: 발음 → 평가 팝업
+  const micImg=document.getElementById('micImg'), speakImg=document.getElementById('speakImg');
+  const MIC_OFF='assets/btn_mic.png', MIC_ON='assets/btn_mic_on.png';
+  const SPK_OFF='assets/btn_speak_off.png', SPK_ON='assets/btn_speak.png';
+
+  // 🔊 스피크 = 단어 듣기 (재생 중엔 초록 ON, 끝나면 주황 OFF)
+  btnSpeak.addEventListener('click',()=>{
+    interacted=true; clearTimeout(idleHint); // 사용자 반응
+    speakImg.src=SPK_ON;
+    try{
+      const u=new SpeechSynthesisUtterance(levels[li].word); u.lang='en-US'; u.rate=.8;
+      u.onend=()=>{ speakImg.src=SPK_OFF; };
+      speechSynthesis.cancel(); speechSynthesis.speak(u);
+    }catch(e){ speakImg.src=SPK_OFF; }
+  });
+  // 🔁 리플레이 = 현재 문제를 풀에서 다른 단어로 랜덤 교체 + 초기화
+  document.getElementById('btnReplay').addEventListener('click',()=>{
+    const used=new Set(levels.map(l=>l.word));
+    const cand=WORDS.filter(w=>!used.has(w.word));
+    if(cand.length){ levels[li]=cand[Math.floor(Math.random()*cand.length)]; solved.delete(li); }
+    loadLevel();
+  });
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  let recog=null, recording=false, activeBtn=null;
+
+  // 녹음 UI 공통 (녹음 중엔 배경음악/TTS 정지 → 마이크 간섭 방지, 인식률↑)
+  let musicPrevMuted=null;
+  function beginRec(btn){
+    recording=true; activeBtn=btn; btn.classList.add('recording'); micImg.src=MIC_ON; setLion('listen');
+    try{ speechSynthesis.cancel(); }catch(e){}                                   // 단어 TTS 중지
+    try{ if(bgVideo){ musicPrevMuted=bgVideo.muted; bgVideo.muted=true; } }catch(e){} // 배경음악 잠시 음소거
+    // showInfo(1)은 마이크가 실제로 켜진 뒤 호출(타이밍 문제 방지)
+  }
+  function endRec(){
+    recording=false; if(activeBtn) activeBtn.classList.remove('recording'); activeBtn=null; micImg.src=MIC_OFF;
+    try{ if(bgVideo && musicPrevMuted!==null){ bgVideo.muted=musicPrevMuted; musicPrevMuted=null; } }catch(e){} // 배경음악 복구
+  }
+
+  // 발음 시작 — Azure(음소별) 우선, 없으면 Web Speech(간이)
+  function startPractice(btn){
+    if(recording){ if(recog){try{recog.stop()}catch(e){}} return; }
+    if(phase!=='speak'){ showInfo(3); return; }      // "먼저 단어를 완성해줘!"
+    if(AZURE_TOKEN_URL && window.SpeechSDK) return azureAssess(btn); // 음소별 정확 평가
+    if(SR) return webSpeechAssess(btn);              // 간이 평가(fallback)
+    showInfo(6);                                     // "이 브라우저는 음성 인식 미지원"
+  }
+
+  // --- Web Speech (간이): 단어 인식 후 글자단위 근사 평가 ---
+  function webSpeechAssess(btn){
+    recog=new SR(); recog.lang='en-US'; recog.interimResults=false; recog.maxAlternatives=5;
+    beginRec(btn);
+    recog.onaudiostart=()=>showInfo(1); // 마이크 켜진 뒤 "발음해보세요!"
+    let got=false, errCode='';
+    recog.onresult=(e)=>{
+      got=true;
+      const target=levels[li].word.toLowerCase(); const r=e.results[0];
+      let best='', bestHits=-1;
+      for(let i=0;i<r.length;i++){
+        const t=(r[i].transcript||'').trim().toLowerCase().replace(/[^a-z]/g,'');
+        const hits=soundMatch(t,target).filter(Boolean).length;
+        if(hits>bestHits || (hits===bestHits && t===target)){ bestHits=hits; best=t; }
+      }
+      openEval(target, best);
+    };
+    recog.onerror=(e)=>{ errCode=(e&&e.error)||''; };
+    recog.onend=()=>{ endRec(); recog=null;
+      if(!got){ setLion('idle'); showInfo((errCode==='not-allowed'||errCode==='service-not-allowed')?5:4); }
+    };
+    try{ recog.start(); }catch(err){ endRec(); }
+  }
+
+  // --- Azure Pronunciation Assessment (음소별 정확 평가) ---
+  async function azureAssess(btn){
+    beginRec(btn);
+    let tok;
+    try{ const r=await fetch(AZURE_TOKEN_URL,{cache:'no-store'}); tok=await r.json(); }
+    catch(e){ console.error('[azure] token fetch 실패', e); endRec(); setLion('idle'); showInfo(4); return; }
+    console.log('[azure] token OK, region=', tok&&tok.region);
+    const SDK=window.SpeechSDK, word=levels[li].word;
+    let rec;
+    try{
+      const sc=SDK.SpeechConfig.fromAuthorizationToken(tok.token, tok.region);
+      sc.speechRecognitionLanguage='en-US';
+      try{ sc.setProperty(SDK.PropertyId.SpeechServiceConnection_InitialSilenceTimeoutMs,'8000'); }catch(e){}
+      rec=new SDK.SpeechRecognizer(sc, SDK.AudioConfig.fromDefaultMicrophoneInput());
+      const pac=new SDK.PronunciationAssessmentConfig(word,
+        SDK.PronunciationAssessmentGradingSystem.HundredMark,
+        SDK.PronunciationAssessmentGranularity.Phoneme, true);
+      try{ pac.phonemeAlphabet='IPA'; }catch(e){}
+      pac.applyTo(rec);
+      rec.sessionStarted=()=>{ console.log('[azure] 마이크 세션 시작'); showInfo(1); }; // 실제 녹음 시작 시 안내
+      rec.speechStartDetected=()=>console.log('[azure] 음성 감지됨');
+    }catch(e){ console.error('[azure] config 실패', e); endRec(); setLion('idle'); showInfo(4); return; }
+    rec.recognizeOnceAsync(res=>{
+      endRec(); let ok=false;
+      const raw = res.properties && res.properties.getProperty(SDK.PropertyId.SpeechServiceResponse_JsonResult);
+      console.log('[azure] reason=', res.reason, '| text=', res.text, '| json=', raw);
+      try{
+        if(res.reason===SDK.ResultReason.RecognizedSpeech && raw){
+          const j=JSON.parse(raw), nb=(j.NBest&&j.NBest[0])||{}, words=nb.Words||[], phs=[];
+          // 여러 번 읽어도 첫 번째(정답) 단어 하나만 평가
+          const w=words.find(x=>(x.Word||'').toLowerCase()===word.toLowerCase()) || words[0] || {};
+          (w.Phonemes||[]).forEach(p=>{
+            phs.push({ph:p.Phoneme, score:Math.round((p.PronunciationAssessment&&p.PronunciationAssessment.AccuracyScore)||0)});
+          });
+          const overall=Math.round((w.PronunciationAssessment&&w.PronunciationAssessment.AccuracyScore)
+                                 ||(nb.PronunciationAssessment&&nb.PronunciationAssessment.AccuracyScore)||0);
+          console.log('[azure] 평가단어=', w.Word, 'overall=', overall, 'phonemes=', phs);
+          if(phs.length){ openEvalAzure(word, overall, phs); ok=true; } // 음소 데이터 있을 때만
+        } else if(res.reason===SDK.ResultReason.Canceled){
+          console.error('[azure] Canceled:', SDK.CancellationDetails.fromResult(res).errorDetails);
+        }
+      }catch(e){ console.error('[azure] parse err', e); }
+      if(!ok){ setLion('idle'); showInfo(4); } // 데이터 없으면 잘못된 '정확해요' 대신 재시도 안내
+      try{ rec.close(); }catch(e){}
+    }, err=>{ console.error('[azure] recognizeOnce err', err); endRec(); setLion('idle'); showInfo(4); try{ rec.close(); }catch(e){} });
+  }
+  btnMic.addEventListener('click',()=>startPractice(btnMic));
+
+  // ---- 평가 팝업 ----
+  const evalModal=document.getElementById('evalModal');
+  // 글자→발음기호(IPA) : 현재 CVC 단어 세트 기준
+  const PHON={ a:'æ', b:'b', c:'k', d:'d', e:'ɛ', f:'f', g:'g', i:'ɪ', l:'l',
+               n:'n', o:'ɒ', p:'p', r:'r', s:'s', t:'t', u:'ʌ', v:'v', x:'ks' };
+  const phon = l => PHON[l]||l;
+  // 소리(음소) 정렬: 들린 발음과 정답을 맞춰 정답 글자별로 맞았는지 표시
+  function soundMatch(said, target){
+    const m=said.length, n=target.length, d=[];
+    for(let i=0;i<=m;i++){ d[i]=[i]; }
+    for(let j=0;j<=n;j++){ d[0][j]=j; }
+    for(let i=1;i<=m;i++)for(let j=1;j<=n;j++){
+      const c=said[i-1]===target[j-1]?0:1;
+      d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+c);
+    }
+    const hit=new Array(n).fill(false); let i=m,j=n;
+    while(i>0&&j>0){
+      const c=said[i-1]===target[j-1]?0:1;
+      if(d[i][j]===d[i-1][j-1]+c){ if(c===0) hit[j-1]=true; i--;j--; }
+      else if(d[i][j]===d[i-1][j]+1){ i--; } else { j--; }
+    }
+    return hit;
+  }
+  function openEval(word, said){
+    const hit = said ? soundMatch(said, word) : new Array(word.length).fill(false);
+    const matched = hit.filter(Boolean).length;
+    const pct = said ? Math.round(matched/word.length*100) : 0;
+    const stars = Math.min(matched, 3); // 맞은 소리 개수 = 노란 별 개수
+    document.getElementById('evalWord').textContent=word;
+    // 별점 (채움/빈 별 이미지 교체)
+    document.querySelectorAll('#evalStars img').forEach((s,i)=>{
+      const on=i<stars; s.src = on ? 'assets/ic_star.png' : 'assets/ic_star_blank.png';
+      s.classList.toggle('on', on);
+    });
+    // 글자별 o(맞음)/x(틀림)
+    document.getElementById('evalMarks').innerHTML = word.split('').map((ch,i)=>
+      '<span class="'+(hit[i]?'ok':'no')+'">'+(hit[i]?'o':'x')+'</span>').join('');
+    // 틀린 발음 — 어떤 음소가 틀렸는지 발음기호로 표기
+    const heardEl=document.getElementById('evalHeard');
+    if(!said){
+      heardEl.textContent='틀린 소리 : —';
+    } else if(matched>=word.length){
+      heardEl.textContent='정확해요! ['+word.split('').map(phon).join('')+']';
+    } else {
+      const wrong=word.split('').filter((l,i)=>!hit[i]).map(l=>'/'+phon(l)+'/').join(' ');
+      heardEl.textContent='틀린 소리 : '+wrong+'  (들림: '+said+')';
+    }
+    // 발음 보너스: 별점에 따라 3★+30 / 2★+20 / 1★+10 (레벨당 1회)
+    if(phase==='speak' && !bonusClaimed && said){
+      const bonus = stars>=3?30 : stars===2?20 : stars===1?10 : 0;
+      if(bonus>0){ bonusClaimed=true; score+=bonus; scoreEl.textContent=score; }
+    }
+    evalModal.className='on';
+    // 발음을 했으면(said) 다음 단어로 진행 가능
+    if(said){ btnMic.classList.remove('invite'); nextBtn.style.display='block'; setLion(pct>=50?'praise':'idle'); }
+    else setLion('idle');
+  }
+  // Azure 음소별 결과 팝업
+  function openEvalAzure(word, overall, phonemes){
+    const stars = overall>=80?3 : overall>=60?2 : overall>=40?1 : 0;
+    document.getElementById('evalWord').textContent=word;
+    document.querySelectorAll('#evalStars img').forEach((s,i)=>{
+      const on=i<stars; s.src=on?'assets/ic_star.png':'assets/ic_star_blank.png'; s.classList.toggle('on',on);
+    });
+    // 음소별 점수 (초록≥70 / 주황≥40 / 빨강)
+    document.getElementById('evalMarks').innerHTML = phonemes.map(p=>{
+      const cls=p.score>=70?'ok':p.score>=40?'mid':'no';
+      return '<span class="'+cls+'">/'+p.ph+'/<small>'+p.score+'</small></span>';
+    }).join('');
+    const bad=phonemes.filter(p=>p.score<60).map(p=>'/'+p.ph+'/').join(' ');
+    document.getElementById('evalHeard').textContent = bad ? ('틀린 소리 : '+bad+'  ('+overall+'점)') : ('정확해요! ('+overall+'점)');
+    if(phase==='speak' && !bonusClaimed){ const b=stars>=3?30:stars===2?20:stars===1?10:0; if(b){bonusClaimed=true;score+=b;scoreEl.textContent=score;} }
+    evalModal.className='on';
+    btnMic.classList.remove('invite'); nextBtn.style.display='block'; setLion(overall>=50?'praise':'idle');
+  }
+  document.getElementById('evalClose').addEventListener('click',()=>evalModal.classList.remove('on'));
+  document.getElementById('evalRetry').addEventListener('click',()=>{ evalModal.classList.remove('on'); startPractice(btnMic); });
+  document.getElementById('btnHome').addEventListener('click',()=>{ game.classList.remove('on'); intro.classList.add('on'); });
+  // ---- 설정 팝업 ----
+  const setModal=document.getElementById('setModal');
+  const tgMusic=document.getElementById('tgMusic'), tgSound=document.getElementById('tgSound');
+  function refreshToggles(){
+    tgMusic.textContent=musicOn?'ON':'OFF'; tgMusic.classList.toggle('off',!musicOn);
+    tgSound.textContent=soundOn?'ON':'OFF'; tgSound.classList.toggle('off',!soundOn);
+  }
+  document.getElementById('btnSetting').addEventListener('click',()=>{ refreshToggles(); setModal.classList.add('on'); });
+  tgMusic.addEventListener('click',()=>{
+    musicOn=!musicOn;
+    try{ bgVideo.muted=!musicOn; if(musicOn){ bgVideo.volume=.35; bgVideo.play().catch(()=>{}); } }catch(e){}
+    refreshToggles();
+  });
+  tgSound.addEventListener('click',()=>{
+    soundOn=!soundOn;
+    if(!soundOn){ try{ speechSynthesis.cancel(); }catch(e){} } // 말소리 끄면 즉시 정지
+    refreshToggles();
+  });
+  document.getElementById('setClose').addEventListener('click',()=>setModal.classList.remove('on'));
+
+  // ---- 사자 마스코트: 상태별 이미지 + 애니메이션 ----
+  const lion=document.getElementById('lion'), lionImg=document.getElementById('lionImg');
+  // 상태(캐릭터)별 이미지 + 위치/크기 개별 지정 (left, bottom, w, h) — 포즈마다 따로 조정 가능
+  const LION={
+    idle:      { src:'assets/lion1.png', left:-60, bottom:-90,  w:570, h:630 }, // 기본(가리킴)
+    listen:    { src:'assets/lion3.png', left:-180, bottom:-90, w:570, h:630 }, // 듣기(기본과 동일 크기·왼쪽으로만)
+    celebrate: { src:'assets/lion2.png', left:-40, bottom:-70,  w:560, h:640 }, // 환호(점프)
+    praise:    { src:'assets/lion4.png', left:-30, bottom:-90,  w:520, h:660 }  // 칭찬(엄지척)
+  };
+  function setLion(state){
+    const c=LION[state]||LION.idle;
+    lionImg.src=c.src;
+    lion.style.left=c.left+'px'; lion.style.bottom=c.bottom+'px'; lion.style.top='auto';
+    lion.style.width=c.w+'px'; lion.style.height=c.h+'px';
+    const cls = state==='celebrate' ? 'jump' : 'pop';
+    lion.classList.remove('pop','jump'); void lion.offsetWidth; lion.classList.add(cls);
+  }
+  lion.addEventListener('animationend',()=>lion.classList.remove('pop','jump'));
+  // 클릭 인터랙션: 사자를 누르면 단어를 읽어주고 통통 튐
+  lion.addEventListener('click',()=>{ say(levels[li].word); lion.classList.remove('pop','jump'); void lion.offsetWidth; lion.classList.add('pop'); });
+
+  newRound(); renderHearts();
+})();
+</script>
+</body>
+</html>
