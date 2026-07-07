@@ -198,7 +198,7 @@
 
 | 항목 | 선택 |
 |------|------|
-| 구현 | **단일 HTML 파일**(`sound_safari.html`) + Vanilla JS (프레임워크 없음) |
+| 구현 | **단일 HTML 파일**(`index.html`) + Vanilla JS (프레임워크 없음) |
 | 레이아웃 | 1280×720 고정 스테이지 → `transform: scale()` contain 방식 (찌그러짐 없이 전체 표시) |
 | 발음평가 | **Azure Speech SDK**(음소별) + **Web Speech API**(fallback) |
 | 토큰 발급 | **Cloudflare Worker** (Azure 단기 토큰, 키 서버측 보관) |
@@ -209,7 +209,7 @@
 ### 파일 구조
 
 ```
-sound_safari.html        — 게임 전체 (HTML+CSS+JS 단일 파일)
+index.html               — 게임 전체 (HTML+CSS+JS 단일 파일, 진입 파일)
 assets/                  — Figma에서 export한 아트 (81개: 배경/보드/버튼/사자/글자·그림 카드/안내 이미지 등)
   ├─ game_bg.mp4, bg.png, logo.png, board.png, word_board.png
   ├─ lion1~4.png (상태별), life_board/heart, point_board, pop_box
@@ -239,7 +239,7 @@ stage.style.transform = 'translate(-50%,-50%) scale(' + s + ')';
 - **엔드포인트**: `GET` → `{ token, region }` 반환
 - **시크릿/변수**: `AZURE_KEY`(시크릿), `AZURE_REGION`(예: koreacentral, eastus)
 - **배포**: `wrangler deploy`
-- **연결**: `sound_safari.html`의 `AZURE_TOKEN_URL` 상수에 Worker URL 지정 (비우면 Web Speech 간이 평가로 동작)
+- **연결**: `index.html`의 `AZURE_TOKEN_URL` 상수에 Worker URL 지정 (비우면 Web Speech 간이 평가로 동작)
 - CORS: 배포 시 `*` 대신 실제 도메인으로 제한 권장
 
 > 🔐 보안: Azure 리소스 키는 Worker 시크릿에만 저장하며 코드/클라이언트에 포함하지 않는다.
@@ -248,10 +248,10 @@ stage.style.transform = 'translate(-50%,-50%) scale(' + s + ')';
 
 ## 12. 배포
 
-- **저장소**: GitHub (`jinilee-hue/Sound-Safari`) — 저장소 루트에 `sound_safari.html` + `assets/`
+- **저장소**: GitHub (`jinilee-hue/Sound-Safari`). 저장소 루트가 `Phonics/`이고 게임은 `sound_safari/` 하위(`sound_safari/index.html` + `sound_safari/assets/`)
 - **배포 방식**: GitHub Pages (main 브랜치 → "pages build and deployment" 자동 발행)
-- **라이브 URL**: `https://jinilee-hue.github.io/Sound-Safari/sound_safari.html`
-- **로컬 실행**: `python -m http.server 8000` → `http://localhost:8000/sound_safari.html`
+- **라이브 URL**: `https://jinilee-hue.github.io/Sound-Safari/sound_safari/` (폴더 접속 시 index.html 자동)
+- **로컬 실행**: `Phonics/`에서 `python -m http.server 8000` → `http://localhost:8000/sound_safari/`
   - 마이크(음성 인식)는 **Chrome/Edge** + `https://` 또는 `localhost`에서만 동작
 
 ### 배포 주의
