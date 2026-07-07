@@ -7,3 +7,6 @@ desktop.ini
 .vscode/
 .idea/
 *.swp
+
+# 별도 프로젝트(자체 git 저장소: phonics-wordmashup) — Sound-Safari가 추적하지 않음
+word_mashup/
