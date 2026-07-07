@@ -777,6 +777,29 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
   // 클릭 인터랙션: 사자를 누르면 단어를 읽어주고 통통 튐
   lion.addEventListener('click',()=>{ say(levels[li].word); lion.classList.remove('pop','jump'); void lion.offsetWidth; lion.classList.add('pop'); });
 
+  // ---- 배경음악: 인트로부터 최대한 빨리 재생 ----
+  // 브라우저 자동재생 정책상 "소리"는 사용자 상호작용 전엔 차단될 수 있음.
+  // ① 로드 시 소리 켜서 재생 시도(허용 브라우저/재방문 시 인트로부터 바로 음악)
+  // ② 차단되면 음소거로 재생 + 화면 첫 터치(아무 곳)에 소리 켜기
+  function tryAutoplayMusic(){
+    if(!musicOn) return;
+    try{ bgVideo.volume=.35; bgVideo.muted=false; }catch(e){}
+    const p = bgVideo.play();
+    if(p && p.catch) p.catch(()=>{
+      try{ bgVideo.muted=true; bgVideo.play().catch(()=>{}); }catch(e){}   // 음소거 재생(허용됨)
+      const unlock=()=>{
+        if(musicOn){ try{ bgVideo.muted=false; bgVideo.volume=.35; bgVideo.play().catch(()=>{}); }catch(e){} }
+        window.removeEventListener('pointerdown',unlock,true);
+        window.removeEventListener('touchstart',unlock,true);
+        window.removeEventListener('keydown',unlock,true);
+      };
+      window.addEventListener('pointerdown',unlock,true);
+      window.addEventListener('touchstart',unlock,true);
+      window.addEventListener('keydown',unlock,true);
+    });
+  }
+  tryAutoplayMusic();
+
   newRound(); renderHearts();
 })();
 </script>
