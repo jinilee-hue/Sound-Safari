@@ -172,6 +172,13 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
   .setToggle.off{background:#a99}
   .setToggle:active{transform:translateY(3px)}
   #setClose{left:554px;top:580px;width:170px;height:108px;cursor:pointer;pointer-events:auto}
+  /* 마이크 테스트 레벨 미터 */
+  .micBar{position:absolute;left:443px;width:393px;height:24px;border-radius:12px;z-index:1;overflow:hidden;
+    background:rgba(0,0,0,.38);box-shadow:inset 0 2px 5px rgba(0,0,0,.45)}
+  .micBar > i{display:block;height:100%;width:0;border-radius:12px;
+    background:linear-gradient(90deg,#8ee06b 0%,#ffd23f 60%,#ff6b6b 100%);transition:width .05s linear}
+  .micVerdict{position:absolute;left:443px;width:393px;text-align:center;z-index:1;
+    font-family:'Jua',sans-serif;font-size:22px;color:#fff;text-shadow:0 2px 0 rgba(0,0,0,.35)}
 
   /* ===== 발음 평가 팝업 (Figma: Sound Safari_발음평가, 스테이지 좌표 기준) ===== */
   #evalModal{position:absolute;inset:0;z-index:60;display:none}
@@ -300,8 +307,11 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
         <div class="pop">
           <img class="evalBoxImg" src="assets/pop_box.png" alt="">
           <div class="setTitle">설정</div>
-          <div class="setRow" style="top:245px"><span class="setLabel">배경음악</span><button class="setToggle" id="tgMusic">ON</button></div>
-          <div class="setRow" style="top:330px"><span class="setLabel">말소리</span><button class="setToggle" id="tgSound">ON</button></div>
+          <div class="setRow" style="top:230px"><span class="setLabel">배경음악</span><button class="setToggle" id="tgMusic">ON</button></div>
+          <div class="setRow" style="top:305px"><span class="setLabel">말소리</span><button class="setToggle" id="tgSound">ON</button></div>
+          <div class="setRow" style="top:380px"><span class="setLabel">마이크 테스트</span><button class="setToggle off" id="tgMicTest">테스트</button></div>
+          <div class="micBar" style="top:432px"><i id="micLevel"></i></div>
+          <div class="micVerdict" id="micVerdict" style="top:466px"></div>
           <img id="setClose" src="assets/btn_close.png" alt="닫기">
         </div>
       </div>
@@ -830,7 +840,45 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
     if(!soundOn){ stopTTS(); } // 말소리 끄면 즉시 정지
     refreshToggles();
   });
-  document.getElementById('setClose').addEventListener('click',()=>setModal.classList.remove('on'));
+  document.getElementById('setClose').addEventListener('click',()=>{ stopMicTest(); setModal.classList.remove('on'); });
+
+  // ---- 마이크 테스트 (입력 레벨 미터) — Azure 인식과 별개로 마이크가 소리를 잡는지 눈으로 확인 ----
+  const tgMicTest=document.getElementById('tgMicTest');
+  const micLevel=document.getElementById('micLevel'), micVerdict=document.getElementById('micVerdict');
+  let micStream=null, micCtx=null, micRAF=null, micTestOn=false, micPeak=0;
+  function stopMicTest(){
+    micTestOn=false; tgMicTest.textContent='테스트'; tgMicTest.classList.add('off');
+    if(micRAF){ cancelAnimationFrame(micRAF); micRAF=null; }
+    if(micStream){ try{ micStream.getTracks().forEach(t=>t.stop()); }catch(e){} micStream=null; }
+    if(micCtx){ try{ micCtx.close(); }catch(e){} micCtx=null; }
+    micLevel.style.width='0';
+  }
+  async function startMicTest(){
+    micVerdict.textContent='마이크 확인 중…'; micVerdict.style.color='#fff'; micPeak=0;
+    try{ micStream=await navigator.mediaDevices.getUserMedia({audio:true}); }
+    catch(e){ micVerdict.textContent='마이크 권한이 거부됐어요 ❌'; micVerdict.style.color='#ff9b9b'; return; }
+    micTestOn=true; tgMicTest.textContent='중지'; tgMicTest.classList.remove('off');
+    const Ctx=window.AudioContext||window.webkitAudioContext;
+    micCtx=new Ctx(); try{ micCtx.resume(); }catch(e){}
+    const an=micCtx.createAnalyser(); an.fftSize=512;
+    micCtx.createMediaStreamSource(micStream).connect(an);
+    const buf=new Uint8Array(an.fftSize);
+    micVerdict.textContent='말해보세요! 🎤'; micVerdict.style.color='#fff';
+    const loop=()=>{
+      if(!micTestOn) return;
+      an.getByteTimeDomainData(buf);
+      let sum=0; for(let i=0;i<buf.length;i++){ const v=(buf[i]-128)/128; sum+=v*v; }
+      const rms=Math.sqrt(sum/buf.length);
+      micLevel.style.width=Math.min(100, Math.round(rms*320))+'%';   // 시각화(감도↑)
+      if(rms>micPeak) micPeak=rms;
+      if(micPeak>=0.06){ micVerdict.textContent='잘 들려요! ✅ 소리 정상 입력'; micVerdict.style.color='#a8ec86'; }
+      else if(micPeak>=0.02){ micVerdict.textContent='조금 작아요 — 더 크게/가까이'; micVerdict.style.color='#ffd23f'; }
+      else { micVerdict.textContent='말해보세요! 🎤'; micVerdict.style.color='#fff'; }
+      micRAF=requestAnimationFrame(loop);
+    };
+    loop();
+  }
+  tgMicTest.addEventListener('click',()=>{ micTestOn ? stopMicTest() : startMicTest(); });
 
   // ---- 사자 마스코트: 상태별 이미지 + 애니메이션 ----
   const lion=document.getElementById('lion'), lionImg=document.getElementById('lionImg');
