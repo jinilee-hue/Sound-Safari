@@ -699,6 +699,8 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
       pac.applyTo(rec);
       rec.sessionStarted=()=>{ console.log('[azure] 마이크 세션 시작'); showInfo(1); }; // 실제 녹음 시작 시 안내
       rec.speechStartDetected=()=>console.log('[azure] 음성 감지됨');
+      // Azure 연결(웹소켓)을 미리 열어 handshake 지연을 없앰 → 결과가 더 빨리 옴
+      try{ SDK.Connection.fromRecognizer(rec).openConnection(); }catch(e){}
     }catch(e){ console.error('[azure] config 실패', e); endRec(); setLion('idle'); showInfo(4); return; }
     rec.recognizeOnceAsync(res=>{
       endRec(); let ok=false, perm=false;
