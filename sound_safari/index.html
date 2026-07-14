@@ -411,12 +411,12 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
   //  ⚠ 오디오 요소를 매번 새로 만들면 "맨 첫 재생"이 브라우저 정책상 지연·차단돼
   //     첫 글자 소리가 누락됨. → 요소 하나(ttsEl)를 재사용하고, 시작 터치에서 미리 언락.
   const TTS_DIR='assets/tts/';
-  const TTS_VER='2';        // ⚠ 음성 파일을 다시 뽑을 때마다 +1 → 브라우저·CDN 캐시 무력화
+  const TTS_VER='3';        // ⚠ 음성 파일을 다시 뽑을 때마다 +1 → 브라우저·CDN 캐시 무력화
   const ttsEl=new Audio(); ttsEl.preload='auto';
   let ttsGen=0;              // 재생 세대: 겹치면 이전 재생의 콜백 무시
   let ttsPrimed=false;
   function ttsKey(t){ return String(t).toLowerCase().trim().replace(/[^a-z]/g,''); }
-  function ttsUrl(key){ return TTS_DIR+key+'.mp3?v='+TTS_VER; } // 캐시 버전 쿼리 부착
+  function ttsUrl(key){ return TTS_DIR+key+'.wav?v='+TTS_VER; } // 정규화된 WAV + 캐시 버전 쿼리
   // 사용자 제스처(시작 터치)에서 오디오 요소를 미리 언락 → 첫 소리 누락 방지
   function primeTTS(){
     if(ttsPrimed)return; ttsPrimed=true;
