@@ -1,0 +1,18 @@
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# 별도 프로젝트(자체 git 저장소: phonics-wordmashup) — Sound-Safari가 추적하지 않음
+word_mashup/
+
+# 비밀키 — 절대 커밋 금지 (Azure Speech 키 등)
+*.key
+.env
+.env.*
+tools/azure.key
