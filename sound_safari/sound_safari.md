@@ -185,9 +185,10 @@
 | 항목 | 내용 |
 |------|------|
 | 배경음악 | `assets/game_bg.mp4` 영상의 오디오 트랙 (없으면 `bg.png` 정지 배경) |
-| 단어/글자 읽기 | 브라우저 **SpeechSynthesis(TTS)**, en-US, rate 0.8 |
+| 단어/글자 읽기 | 미리 생성한 **뉴럴 보이스 mp3**(`assets/tts/*.mp3`, 기본 en-US-JennyNeural) 재생. 파일이 없으면 브라우저 **SpeechSynthesis** 로 자동 폴백. 생성: `tools/generate-tts.mjs` (→ [tools/README](tools/README.md)) |
 | 자동 안내 | 문제 로드 후 **2초간 조작이 없으면** 단어를 읽어줌 |
-| 단어 완성 시 | 마지막 글자 발음 → 250ms 후 전체 단어 읽기 |
+| 글자 발음 | 타일을 놓을 때마다 그 글자의 **파닉스 소리(음소)** 로 읽음 (t→"트"). 단어는 자연스러운 단어로 읽음 |
+| 단어 완성 시 | 마지막 글자 소리 → 250ms 후 전체 단어 읽기 |
 | 안내 토스트 | `info_txt1~6.png` 이미지 (발음 안내·마이크 오류·미지원 등) |
 | 결과 | `good.png` / `try_again.png` + 컨페티 |
 | 설정 | 배경음악 / 말소리(TTS) 각각 ON/OFF 토글 |

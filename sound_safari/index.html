@@ -404,16 +404,40 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
   }
 
   function renderHearts(){ heartEls.forEach((h,i)=>h.classList.toggle('on', solved.has(i))); } // 푼 문제만 하트
-  function say(text){ if(!soundOn)return; try{ const u=new SpeechSynthesisUtterance(text); u.lang='en-US'; u.rate=.8; speechSynthesis.cancel(); speechSynthesis.speak(u);}catch(e){} }
+
+  // ---- TTS: 미리 생성한 자연스러운 음성 파일(assets/tts/*.mp3) 재생 ----
+  //  파일이 없으면 브라우저 음성(SpeechSynthesis)으로 자동 폴백하므로 항상 안전.
+  const TTS_DIR='assets/tts/';
+  let ttsAudio=null;
+  function ttsKey(t){ return String(t).toLowerCase().trim().replace(/[^a-z]/g,''); }
+  function stopTTS(){                                    // 재생 중인 소리 즉시 정지
+    if(ttsAudio){ try{ ttsAudio.pause(); }catch(e){} ttsAudio=null; }
+    try{ speechSynthesis.cancel(); }catch(e){}
+  }
+  function browserSay(text, done){                       // 폴백: 브라우저 음성
+    try{ const u=new SpeechSynthesisUtterance(text); u.lang='en-US'; u.rate=.8;
+      if(done) u.onend=done; speechSynthesis.cancel(); speechSynthesis.speak(u);
+    }catch(e){ if(done) done(); }
+  }
+  // 텍스트 재생 → 재생 끝나면 resolve. 파일 없으면 브라우저 음성 폴백.
+  function playText(text){
+    return new Promise(resolve=>{
+      if(!soundOn){ resolve(); return; }
+      stopTTS();
+      const a=new Audio(TTS_DIR+ttsKey(text)+'.mp3');
+      ttsAudio=a;
+      const finish=()=>{ if(ttsAudio===a) ttsAudio=null; resolve(); };
+      a.onended=finish;
+      a.onerror=()=>{ ttsAudio=null; browserSay(text, resolve); };   // 파일 없음 → 폴백
+      a.play().catch(()=>{ ttsAudio=null; browserSay(text, resolve); });
+    });
+  }
+  function say(text){ if(!soundOn)return; playText(text); }
   // 마지막 글자 발음 → 끝나면 전체 단어 읽기
   function sayLetterThenWord(word){
     if(!soundOn)return;
     const letter=word.slice(-1);
-    try{
-      const u=new SpeechSynthesisUtterance(letter); u.lang='en-US'; u.rate=.8;
-      u.onend=()=>{ setTimeout(()=>say(word), 250); };
-      speechSynthesis.cancel(); speechSynthesis.speak(u);
-    }catch(e){ say(word); }
+    playText(letter).then(()=>{ if(soundOn) setTimeout(()=>say(word), 250); });
   }
   function showToast(t,type){
     toast.textContent=t; toast.className=''; if(type) toast.classList.add(type);
@@ -548,11 +572,7 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
   btnSpeak.addEventListener('click',()=>{
     interacted=true; clearTimeout(idleHint); // 사용자 반응
     speakImg.src=SPK_ON;
-    try{
-      const u=new SpeechSynthesisUtterance(levels[li].word); u.lang='en-US'; u.rate=.8;
-      u.onend=()=>{ speakImg.src=SPK_OFF; };
-      speechSynthesis.cancel(); speechSynthesis.speak(u);
-    }catch(e){ speakImg.src=SPK_OFF; }
+    playText(levels[li].word).then(()=>{ speakImg.src=SPK_OFF; }); // 끝나면 주황 OFF
   });
   // 🔁 리플레이 = 현재 문제를 풀에서 다른 단어로 랜덤 교체 + 초기화
   document.getElementById('btnReplay').addEventListener('click',()=>{
@@ -568,7 +588,7 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
   let musicPrevMuted=null;
   function beginRec(btn){
     recording=true; activeBtn=btn; btn.classList.add('recording'); micImg.src=MIC_ON; setLion('listen');
-    try{ speechSynthesis.cancel(); }catch(e){}                                   // 단어 TTS 중지
+    stopTTS();                                                                   // 단어 TTS 중지
     try{ if(bgVideo){ musicPrevMuted=bgVideo.muted; bgVideo.muted=true; } }catch(e){} // 배경음악 잠시 음소거
     // showInfo(1)은 마이크가 실제로 켜진 뒤 호출(타이밍 문제 방지)
   }
@@ -751,7 +771,7 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
   });
   tgSound.addEventListener('click',()=>{
     soundOn=!soundOn;
-    if(!soundOn){ try{ speechSynthesis.cancel(); }catch(e){} } // 말소리 끄면 즉시 정지
+    if(!soundOn){ stopTTS(); } // 말소리 끄면 즉시 정지
     refreshToggles();
   });
   document.getElementById('setClose').addEventListener('click',()=>setModal.classList.remove('on'));
