@@ -337,6 +337,9 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
 
   const stage=document.getElementById('stage'), app=document.getElementById('app');
   const bgVideo=document.getElementById('bgVideo');
+  const MUSIC_VOL=0.16;   // 배경음악 기본 볼륨(파닉스 소리가 잘 들리도록 낮춤)
+  const MUSIC_DUCK=0.05;  // 글자/단어 소리가 재생되는 동안엔 더 낮춤(더킹)
+  function duckMusic(on){ try{ if(bgVideo && musicOn) bgVideo.volume = on ? MUSIC_DUCK : MUSIC_VOL; }catch(e){} }
   let SX=1, SY=1;
   function fit(){
     // 비율 유지(contain): 찌그러짐 없이 전체가 보이게. 남는 여백은 배경이 채움
@@ -350,7 +353,7 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
   const intro=document.getElementById('introScreen'), game=document.getElementById('gameScreen');
   function start(){ if(!intro.classList.contains('on'))return; intro.classList.remove('on'); game.classList.add('on');
     // 사용자 제스처(시작 터치)로 배경음악 음소거 해제 + TTS 오디오 미리 언락
-    try{ bgVideo.muted=!musicOn; bgVideo.volume=.35; bgVideo.play(); }catch(e){}
+    try{ bgVideo.muted=!musicOn; bgVideo.volume=MUSIC_VOL; bgVideo.play(); }catch(e){}
     primeTTS();
     newRound(); solved.clear(); li=0; loadLevel(); }
   intro.addEventListener('click',start);
@@ -434,6 +437,7 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
     ttsGen++;
     try{ ttsEl.pause(); }catch(e){}
     try{ speechSynthesis.cancel(); }catch(e){}
+    duckMusic(false);                                   // 배경음악 원래 볼륨으로
   }
   function browserSay(text, done){                       // 폴백: 브라우저 음성
     try{ const u=new SpeechSynthesisUtterance(text); u.lang='en-US'; u.rate=.8;
@@ -451,10 +455,11 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
       ttsEl.muted=false;
       ttsEl.src=ttsUrl(ttsKey(text));
       try{ ttsEl.currentTime=0; }catch(e){}
-      ttsEl.onended=()=>{ if(gen===ttsGen) resolve(); };
-      ttsEl.onerror=()=>{ if(gen===ttsGen) browserSay(text, resolve); };  // 파일 없음 → 폴백
+      ttsEl.onended=()=>{ if(gen===ttsGen){ duckMusic(false); resolve(); } };
+      ttsEl.onerror=()=>{ if(gen===ttsGen){ duckMusic(false); browserSay(text, resolve); } };  // 파일 없음 → 폴백
+      duckMusic(true);                                    // 재생 중엔 배경음악 낮춤
       const p=ttsEl.play();
-      if(p&&p.catch) p.catch(()=>{ if(gen===ttsGen) browserSay(text, resolve); });
+      if(p&&p.catch) p.catch(()=>{ if(gen===ttsGen){ duckMusic(false); browserSay(text, resolve); } });
     });
   }
   function say(text){ if(!soundOn)return; playText(text); }
@@ -791,7 +796,7 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
   document.getElementById('btnSetting').addEventListener('click',()=>{ refreshToggles(); setModal.classList.add('on'); });
   tgMusic.addEventListener('click',()=>{
     musicOn=!musicOn;
-    try{ bgVideo.muted=!musicOn; if(musicOn){ bgVideo.volume=.35; bgVideo.play().catch(()=>{}); } }catch(e){}
+    try{ bgVideo.muted=!musicOn; if(musicOn){ bgVideo.volume=MUSIC_VOL; bgVideo.play().catch(()=>{}); } }catch(e){}
     refreshToggles();
   });
   tgSound.addEventListener('click',()=>{
@@ -828,12 +833,12 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
   // ② 차단되면 음소거로 재생 + 화면 첫 터치(아무 곳)에 소리 켜기
   function tryAutoplayMusic(){
     if(!musicOn) return;
-    try{ bgVideo.volume=.35; bgVideo.muted=false; }catch(e){}
+    try{ bgVideo.volume=MUSIC_VOL; bgVideo.muted=false; }catch(e){}
     const p = bgVideo.play();
     if(p && p.catch) p.catch(()=>{
       try{ bgVideo.muted=true; bgVideo.play().catch(()=>{}); }catch(e){}   // 음소거 재생(허용됨)
       const unlock=()=>{
-        if(musicOn){ try{ bgVideo.muted=false; bgVideo.volume=.35; bgVideo.play().catch(()=>{}); }catch(e){} }
+        if(musicOn){ try{ bgVideo.muted=false; bgVideo.volume=MUSIC_VOL; bgVideo.play().catch(()=>{}); }catch(e){} }
         window.removeEventListener('pointerdown',unlock,true);
         window.removeEventListener('touchstart',unlock,true);
         window.removeEventListener('keydown',unlock,true);
