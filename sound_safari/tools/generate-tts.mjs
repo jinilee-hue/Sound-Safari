@@ -45,15 +45,26 @@ const PHONEMES = {
 };
 const LETTERS = Object.keys(PHONEMES);
 
+// 무성 파열음(p,t,k / c=k) 은 파열 순간이 짧아 단독 재생 시 거의 안 들림.
+// → 아주 짧은 슈와(ə)를 붙이고 볼륨을 키워 또렷하게. (아동 청취용 타협)
+const STOPS = new Set(['p', 't', 'k', 'c']);
+
 const ENDPOINT = `https://${REGION}.tts.speech.microsoft.com/cognitiveservices/v1`;
 
 // 아동 학습용: 또렷하게 살짝 천천히.
 //  - 단어: 그대로 자연스럽게
 //  - 글자: 파닉스 소리(음소)로. IPA phoneme 태그 사용.
+//  - 무성 파열음: 짧은 슈와 + 볼륨 부스트로 또렷하게.
 function ssml(text, isLetter) {
-  const inner = isLetter
-    ? `<phoneme alphabet="ipa" ph="${PHONEMES[text]}">${text}</phoneme>`
-    : text;
+  if (!isLetter) {
+    return wrap(text);
+  }
+  const isStop = STOPS.has(text);
+  const ph = PHONEMES[text] + (isStop ? 'ə' : '');   // 파열음엔 짧은 슈와 붙임
+  const phoneme = `<phoneme alphabet="ipa" ph="${ph}">${text}</phoneme>`;
+  return wrap(isStop ? `<prosody volume="+30.00%">${phoneme}</prosody>` : phoneme);
+}
+function wrap(inner) {
   return `<speak version="1.0" xmlns:mstts="http://www.w3.org/2001/mstts" xml:lang="en-US">
   <voice name="${VOICE}">
     <prosody rate="-8%">${inner}</prosody>
@@ -91,10 +102,18 @@ async function main() {
   await mkdir(OUT_DIR, { recursive: true });
   console.log(`▶ 보이스: ${VOICE} · 리전: ${REGION} · 출력: ${OUT_DIR}\n`);
 
-  const jobs = [
+  let jobs = [
     ...WORDS.map(w => ({ text: w, key: w, isLetter: false })),
     ...LETTERS.map(l => ({ text: l, key: l, isLetter: true })),
   ];
+
+  // --only=t,p,k,c : 지정한 키만 생성 (일부만 다시 뽑을 때)
+  const only = (process.argv.find(a => a.startsWith('--only=')) || '').split('=')[1];
+  if (only) {
+    const set = new Set(only.split(',').map(s => s.trim().toLowerCase()));
+    jobs = jobs.filter(j => set.has(j.key));
+    console.log(`(--only) 대상: ${[...set].join(', ')} → ${jobs.length}개\n`);
+  }
 
   let ok = 0, skip = 0;
   for (const j of jobs) {              // F0 무료 티어 안전하게 순차 실행
