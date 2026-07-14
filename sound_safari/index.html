@@ -335,6 +335,19 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
   // 배포한 토큰 서버 URL을 넣으면 음소별 정확 평가(Azure) 사용. 비우면 간이(Web Speech) 평가.
   const AZURE_TOKEN_URL = 'https://sound-safari-token.jini-lee.workers.dev/';
 
+  // 토큰 캐시(~10분 유효) — 마이크 누를 때마다 새로 받지 않도록 미리 받아 재사용 → 평가 시작이 빠름
+  let azureTok=null, azureTokAt=0, azureTokP=null;
+  function getAzureToken(){
+    const fresh = azureTok && (Date.now()-azureTokAt) < 8*60*1000; // 8분 이내면 재사용
+    if(fresh) return Promise.resolve(azureTok);
+    if(azureTokP) return azureTokP;                                // 진행 중인 요청 공유
+    azureTokP = fetch(AZURE_TOKEN_URL,{cache:'no-store'}).then(r=>r.json())
+      .then(t=>{ azureTok=t; azureTokAt=Date.now(); azureTokP=null; return t; })
+      .catch(e=>{ azureTokP=null; throw e; });
+    return azureTokP;
+  }
+  function warmAzure(){ if(AZURE_TOKEN_URL) getAzureToken().catch(()=>{}); } // 미리 받기(실패 무시)
+
   const stage=document.getElementById('stage'), app=document.getElementById('app');
   const bgVideo=document.getElementById('bgVideo');
   const MUSIC_INTRO=0.35; // 인트로 음악 볼륨(소리 안 나오므로 줄일 필요 없음)
@@ -357,6 +370,7 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
     // 사용자 제스처(시작 터치)로 배경음악 음소거 해제 + TTS 오디오 미리 언락
     try{ bgVideo.muted=!musicOn; bgVideo.volume=MUSIC_VOL; bgVideo.play(); }catch(e){}
     primeTTS();
+    warmAzure();                     // 발음평가 토큰 미리 받기 → 첫 마이크 즉시 시작
     newRound(); solved.clear(); li=0; loadLevel(); }
   intro.addEventListener('click',start);
 
@@ -574,6 +588,7 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
     // 발음 단계로 전환 → 마이크 활성화 + "발음해봐!" 초대
     phase='speak';
     btnMic.classList.remove('locked'); btnMic.classList.add('invite');
+    warmAzure();                    // 곧 마이크 사용 → 발음평가 토큰 미리 갱신
     setLion('celebrate');           // 단어 완성 → 점프 환호
     showResult('good');             // GOOD! 이미지 + 파티클
     confetti(210, 330, 20);         // 사자 주변에서 추가 파티클
@@ -666,7 +681,7 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
   async function azureAssess(btn){
     beginRec(btn);
     let tok;
-    try{ const r=await fetch(AZURE_TOKEN_URL,{cache:'no-store'}); tok=await r.json(); }
+    try{ tok=await getAzureToken(); }   // 캐시된 토큰 재사용(없으면 즉시 발급)
     catch(e){ console.error('[azure] token fetch 실패', e); endRec(); setLion('idle'); showInfo(4); return; }
     console.log('[azure] token OK, region=', tok&&tok.region);
     const SDK=window.SpeechSDK, word=levels[li].word;
@@ -675,6 +690,9 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
       const sc=SDK.SpeechConfig.fromAuthorizationToken(tok.token, tok.region);
       sc.speechRecognitionLanguage='en-US';
       try{ sc.setProperty(SDK.PropertyId.SpeechServiceConnection_InitialSilenceTimeoutMs,'8000'); }catch(e){}
+      // 말이 끝난 뒤 결과를 빨리 내도록 종료 침묵 시간을 짧게 (기본보다 낮춤)
+      try{ sc.setProperty(SDK.PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs,'350'); }catch(e){}
+      try{ sc.setProperty(SDK.PropertyId.Speech_SegmentationSilenceTimeoutMs,'350'); }catch(e){}
       rec=new SDK.SpeechRecognizer(sc, SDK.AudioConfig.fromDefaultMicrophoneInput());
       const pac=new SDK.PronunciationAssessmentConfig(word,
         SDK.PronunciationAssessmentGradingSystem.HundredMark,
