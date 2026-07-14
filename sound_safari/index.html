@@ -690,9 +690,7 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
       const sc=SDK.SpeechConfig.fromAuthorizationToken(tok.token, tok.region);
       sc.speechRecognitionLanguage='en-US';
       try{ sc.setProperty(SDK.PropertyId.SpeechServiceConnection_InitialSilenceTimeoutMs,'8000'); }catch(e){}
-      // 말이 끝난 뒤 결과를 빨리 내도록 종료 침묵 시간을 짧게 (기본보다 낮춤)
-      try{ sc.setProperty(SDK.PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs,'350'); }catch(e){}
-      try{ sc.setProperty(SDK.PropertyId.Speech_SegmentationSilenceTimeoutMs,'350'); }catch(e){}
+      // (종료 침묵 시간은 기본값 사용 — 너무 짧으면 발음이 잘려 결과가 안 나옴)
       rec=new SDK.SpeechRecognizer(sc, SDK.AudioConfig.fromDefaultMicrophoneInput());
       const pac=new SDK.PronunciationAssessmentConfig(word,
         SDK.PronunciationAssessmentGradingSystem.HundredMark,
