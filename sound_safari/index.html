@@ -337,9 +337,11 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
 
   const stage=document.getElementById('stage'), app=document.getElementById('app');
   const bgVideo=document.getElementById('bgVideo');
-  const MUSIC_VOL=0.16;   // 배경음악 기본 볼륨(파닉스 소리가 잘 들리도록 낮춤)
+  const MUSIC_INTRO=0.35; // 인트로 음악 볼륨(소리 안 나오므로 줄일 필요 없음)
+  const MUSIC_VOL=0.16;   // 게임 화면 음악 볼륨(파닉스 소리가 잘 들리도록 낮춤)
   const MUSIC_DUCK=0.05;  // 글자/단어 소리가 재생되는 동안엔 더 낮춤(더킹)
-  function duckMusic(on){ try{ if(bgVideo && musicOn) bgVideo.volume = on ? MUSIC_DUCK : MUSIC_VOL; }catch(e){} }
+  function musicBase(){ return (intro && intro.classList.contains('on')) ? MUSIC_INTRO : MUSIC_VOL; }
+  function duckMusic(on){ try{ if(bgVideo && musicOn) bgVideo.volume = on ? MUSIC_DUCK : musicBase(); }catch(e){} }
   let SX=1, SY=1;
   function fit(){
     // 비율 유지(contain): 찌그러짐 없이 전체가 보이게. 남는 여백은 배경이 채움
@@ -785,7 +787,8 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
   }
   document.getElementById('evalClose').addEventListener('click',()=>evalModal.classList.remove('on'));
   document.getElementById('evalRetry').addEventListener('click',()=>{ evalModal.classList.remove('on'); startPractice(btnMic); });
-  document.getElementById('btnHome').addEventListener('click',()=>{ game.classList.remove('on'); intro.classList.add('on'); });
+  document.getElementById('btnHome').addEventListener('click',()=>{ game.classList.remove('on'); intro.classList.add('on');
+    stopTTS(); try{ if(musicOn) bgVideo.volume=MUSIC_INTRO; }catch(e){} }); // 인트로 복귀 → 음악 원래 볼륨
   // ---- 설정 팝업 ----
   const setModal=document.getElementById('setModal');
   const tgMusic=document.getElementById('tgMusic'), tgSound=document.getElementById('tgSound');
@@ -796,7 +799,7 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
   document.getElementById('btnSetting').addEventListener('click',()=>{ refreshToggles(); setModal.classList.add('on'); });
   tgMusic.addEventListener('click',()=>{
     musicOn=!musicOn;
-    try{ bgVideo.muted=!musicOn; if(musicOn){ bgVideo.volume=MUSIC_VOL; bgVideo.play().catch(()=>{}); } }catch(e){}
+    try{ bgVideo.muted=!musicOn; if(musicOn){ bgVideo.volume=musicBase(); bgVideo.play().catch(()=>{}); } }catch(e){}
     refreshToggles();
   });
   tgSound.addEventListener('click',()=>{
@@ -833,12 +836,12 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
   // ② 차단되면 음소거로 재생 + 화면 첫 터치(아무 곳)에 소리 켜기
   function tryAutoplayMusic(){
     if(!musicOn) return;
-    try{ bgVideo.volume=MUSIC_VOL; bgVideo.muted=false; }catch(e){}
+    try{ bgVideo.volume=musicBase(); bgVideo.muted=false; }catch(e){}
     const p = bgVideo.play();
     if(p && p.catch) p.catch(()=>{
       try{ bgVideo.muted=true; bgVideo.play().catch(()=>{}); }catch(e){}   // 음소거 재생(허용됨)
       const unlock=()=>{
-        if(musicOn){ try{ bgVideo.muted=false; bgVideo.volume=MUSIC_VOL; bgVideo.play().catch(()=>{}); }catch(e){} }
+        if(musicOn){ try{ bgVideo.muted=false; bgVideo.volume=musicBase(); bgVideo.play().catch(()=>{}); }catch(e){} }
         window.removeEventListener('pointerdown',unlock,true);
         window.removeEventListener('touchstart',unlock,true);
         window.removeEventListener('keydown',unlock,true);
