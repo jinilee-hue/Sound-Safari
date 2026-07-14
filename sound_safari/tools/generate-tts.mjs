@@ -45,9 +45,9 @@ const PHONEMES = {
 };
 const LETTERS = Object.keys(PHONEMES);
 
-// 무성 파열음(p,t,k / c=k) 은 파열 순간이 짧아 단독 재생 시 거의 안 들림.
+// 파열음(무성 p,t,k/c=k · 유성 b,d,g)은 파열 순간이 짧아 단독 재생 시 거의 안 들림.
 // → 아주 짧은 슈와(ə)를 붙이고 볼륨을 키워 또렷하게. (아동 청취용 타협)
-const STOPS = new Set(['p', 't', 'k', 'c']);
+const STOPS = new Set(['p', 't', 'k', 'c', 'b', 'd', 'g']);
 
 const ENDPOINT = `https://${REGION}.tts.speech.microsoft.com/cognitiveservices/v1`;
 
