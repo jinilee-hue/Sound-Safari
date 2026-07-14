@@ -701,7 +701,7 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
       rec.speechStartDetected=()=>console.log('[azure] 음성 감지됨');
     }catch(e){ console.error('[azure] config 실패', e); endRec(); setLion('idle'); showInfo(4); return; }
     rec.recognizeOnceAsync(res=>{
-      endRec(); let ok=false;
+      endRec(); let ok=false, perm=false;
       const raw = res.properties && res.properties.getProperty(SDK.PropertyId.SpeechServiceResponse_JsonResult);
       console.log('[azure] reason=', res.reason, '| text=', res.text, '| json=', raw);
       try{
@@ -716,13 +716,18 @@ btn_speak.png, btn_speak_off.png, btn_next.png, shadow.svg
                                  ||(nb.PronunciationAssessment&&nb.PronunciationAssessment.AccuracyScore)||0);
           console.log('[azure] 평가단어=', w.Word, 'overall=', overall, 'phonemes=', phs);
           if(phs.length){ openEvalAzure(word, overall, phs); ok=true; } // 음소 데이터 있을 때만
+        } else if(res.reason===SDK.ResultReason.NoMatch){
+          console.warn('[azure] NoMatch — 음성이 감지됐지만 인식 실패(너무 작거나 불명확)');
         } else if(res.reason===SDK.ResultReason.Canceled){
-          console.error('[azure] Canceled:', SDK.CancellationDetails.fromResult(res).errorDetails);
+          const cd=SDK.CancellationDetails.fromResult(res);
+          const det=(cd&&cd.errorDetails)||'';
+          console.error('[azure] Canceled:', cd&&cd.reason, det);
+          if(/permission|denied|microphone|audio|authoriz|forbidden|1006|access/i.test(det)) perm=true; // 권한/마이크 문제
         }
       }catch(e){ console.error('[azure] parse err', e); }
-      if(!ok){ setLion('idle'); showInfo(4); } // 데이터 없으면 잘못된 '정확해요' 대신 재시도 안내
+      if(!ok){ setLion('idle'); showInfo(perm?5:4); } // 권한 문제면 5, 그 외(음성 미검출)면 4
       try{ rec.close(); }catch(e){}
-    }, err=>{ console.error('[azure] recognizeOnce err', err); endRec(); setLion('idle'); showInfo(4); try{ rec.close(); }catch(e){} });
+    }, err=>{ console.error('[azure] recognizeOnce err', err); endRec(); setLion('idle'); showInfo(5); try{ rec.close(); }catch(e){} });
   }
   btnMic.addEventListener('click',()=>startPractice(btnMic));
 
