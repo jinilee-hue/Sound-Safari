@@ -45,24 +45,32 @@ const PHONEMES = {
 };
 const LETTERS = Object.keys(PHONEMES);
 
-// 파열음(무성 p,t,k/c=k · 유성 b,d,g)은 파열 순간이 짧아 단독 재생 시 거의 안 들림.
-// → 아주 짧은 슈와(ə)를 붙이고 볼륨을 키워 또렷하게. (아동 청취용 타협)
-const STOPS = new Set(['p', 't', 'k', 'c', 'b', 'd', 'g']);
+// 자음은 단독으로 뽑으면 모음/단어보다 소리가 작아 잘 안 들림. 유형별로 보정:
+//  - 파열음(무성 p,t,k/c · 유성 b,d,g): 파열 순간이 짧음 → 짧은 슈와(ə) + 볼륨.
+//  - 연속음(마찰 f,s,v,z · 비음 m,n · 유음 l,r): 늘일 수 있음 → 길게(ː) + 볼륨(ffff·nnnn).
+//  - 그 외 자음(h,w,y,j / x=ks,q=kw): 볼륨만.
+//  - 모음(a,e,i,o,u): 충분히 들려서 그대로.
+const STOPS       = new Set(['p', 't', 'k', 'c', 'b', 'd', 'g']);
+const CONTINUANTS = new Set(['f', 's', 'v', 'z', 'm', 'n', 'l', 'r']);
+const VOWELS      = new Set(['a', 'e', 'i', 'o', 'u']);
 
 const ENDPOINT = `https://${REGION}.tts.speech.microsoft.com/cognitiveservices/v1`;
 
 // 아동 학습용: 또렷하게 살짝 천천히.
 //  - 단어: 그대로 자연스럽게
-//  - 글자: 파닉스 소리(음소)로. IPA phoneme 태그 사용.
-//  - 무성 파열음: 짧은 슈와 + 볼륨 부스트로 또렷하게.
+//  - 글자: 파닉스 소리(음소)로. IPA phoneme 태그 + 유형별 보정.
 function ssml(text, isLetter) {
   if (!isLetter) {
     return wrap(text);
   }
-  const isStop = STOPS.has(text);
-  const ph = PHONEMES[text] + (isStop ? 'ə' : '');   // 파열음엔 짧은 슈와 붙임
-  const phoneme = `<phoneme alphabet="ipa" ph="${ph}">${text}</phoneme>`;
-  return wrap(isStop ? `<prosody volume="+30.00%">${phoneme}</prosody>` : phoneme);
+  const base = PHONEMES[text];
+  if (VOWELS.has(text)) {                              // 모음: 보정 없음
+    return wrap(`<phoneme alphabet="ipa" ph="${base}">${text}</phoneme>`);
+  }
+  let ph = base, vol = '+40.00%';                      // 자음 기본: 볼륨 부스트
+  if (STOPS.has(text))            { ph = base + 'ə'; vol = '+30.00%'; }   // 파열음: 슈와
+  else if (CONTINUANTS.has(text)) { ph = base + 'ː';                 }   // 연속음: 길게
+  return wrap(`<prosody volume="${vol}"><phoneme alphabet="ipa" ph="${ph}">${text}</phoneme></prosody>`);
 }
 function wrap(inner) {
   return `<speak version="1.0" xmlns:mstts="http://www.w3.org/2001/mstts" xml:lang="en-US">
