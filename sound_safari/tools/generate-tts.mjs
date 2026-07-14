@@ -45,32 +45,24 @@ const PHONEMES = {
 };
 const LETTERS = Object.keys(PHONEMES);
 
-// 자음은 단독으로 뽑으면 모음/단어보다 소리가 작아 잘 안 들림. 유형별로 보정:
-//  - 파열음(무성 p,t,k/c · 유성 b,d,g): 파열 순간이 짧음 → 짧은 슈와(ə) + 볼륨.
-//  - 연속음(마찰 f,s,v,z · 비음 m,n · 유음 l,r): 늘일 수 있음 → 길게(ː) + 볼륨(ffff·nnnn).
-//  - 그 외 자음(h,w,y,j / x=ks,q=kw): 볼륨만.
-//  - 모음(a,e,i,o,u): 충분히 들려서 그대로.
-const STOPS       = new Set(['p', 't', 'k', 'c', 'b', 'd', 'g']);
-const CONTINUANTS = new Set(['f', 's', 'v', 'z', 'm', 'n', 'l', 'r']);
-const VOWELS      = new Set(['a', 'e', 'i', 'o', 'u']);
+// 자음은 단독 음소로 뽑으면 모음/단어보다 매우 작게 들림.
+// (PCM 측정: /f/ rms -46dB, /ɡ/ -42dB, /l/ -22dB  vs  모음 -17dB, 단어 -18dB)
+// prosody volume(%)·length(ː)·emphasis 는 Azure가 isolated phoneme 에 반영하지 않음(측정으로 확인).
+//   → 유일하게 효과적인 방법: 자음에 짧은 슈와(ə)를 붙여 유성 캐리어를 준다(측정 시 -15~-17dB로 상승).
+//   연속음(f,s,l…)도 슈와가 붙어 "프,스,르"처럼 들림 — 순수 음소보다 '또렷함'을 우선.
+const VOWELS = new Set(['a', 'e', 'i', 'o', 'u']);
 
 const ENDPOINT = `https://${REGION}.tts.speech.microsoft.com/cognitiveservices/v1`;
 
 // 아동 학습용: 또렷하게 살짝 천천히.
 //  - 단어: 그대로 자연스럽게
-//  - 글자: 파닉스 소리(음소)로. IPA phoneme 태그 + 유형별 보정.
+//  - 모음: 순수 음소 그대로 (충분히 들림)
+//  - 자음: 파닉스 소리 + 짧은 슈와(ə) → 또렷하게
 function ssml(text, isLetter) {
-  if (!isLetter) {
-    return wrap(text);
-  }
+  if (!isLetter) return wrap(text);
   const base = PHONEMES[text];
-  if (VOWELS.has(text)) {                              // 모음: 보정 없음
-    return wrap(`<phoneme alphabet="ipa" ph="${base}">${text}</phoneme>`);
-  }
-  let ph = base, vol = '+40.00%';                      // 자음 기본: 볼륨 부스트
-  if (STOPS.has(text))            { ph = base + 'ə'; vol = '+30.00%'; }   // 파열음: 슈와
-  else if (CONTINUANTS.has(text)) { ph = base + 'ː';                 }   // 연속음: 길게
-  return wrap(`<prosody volume="${vol}"><phoneme alphabet="ipa" ph="${ph}">${text}</phoneme></prosody>`);
+  const ph = VOWELS.has(text) ? base : base + 'ə';    // 자음엔 짧은 슈와
+  return wrap(`<phoneme alphabet="ipa" ph="${ph}">${text}</phoneme>`);
 }
 function wrap(inner) {
   return `<speak version="1.0" xmlns:mstts="http://www.w3.org/2001/mstts" xml:lang="en-US">
